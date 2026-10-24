@@ -104,7 +104,7 @@ typedef NS_ENUM(NSInteger, OTIcon) {
 + (UIFont *)labelLarge;
 + (UIFont *)labelMedium;
 + (UIFont *)labelSmall;
-+ (UIFont *)font:(CGFloat)size weight:(UIFontWeight)weight;
++ (UIFont *)font:(CGFloat)size weight:(CGFloat)weight;
 
 + (UIImage *)icon:(OTIcon)icon size:(CGFloat)size;
 + (UIImage *)icon:(OTIcon)icon size:(CGFloat)size weight:(CGFloat)weight;

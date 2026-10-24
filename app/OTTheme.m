@@ -190,7 +190,7 @@ static void OTDrawLine(CGContextRef ctx, CGFloat x1, CGFloat y1, CGFloat x2, CGF
 
 #pragma mark - Typography
 
-+ (UIFont *)font:(CGFloat)size weight:(UIFontWeight)weight
++ (UIFont *)font:(CGFloat)size weight:(CGFloat)weight
 {
     return [UIFont systemFontOfSize:size weight:weight];
 }
