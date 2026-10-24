@@ -31,7 +31,7 @@ static void *OTPlayerItemStatusContext = &OTPlayerItemStatusContext;
 @property (nonatomic, assign) BOOL loading;
 @property (nonatomic, assign) BOOL shouldResumeAfterInterruption;
 @property (nonatomic, assign) double trackStartTime;
-@property (nonatomic, strong) NSTimer *sleepTimer;
+@property (nonatomic, strong) NSTimer *sleepTimerInstance;
 @property (nonatomic, assign) NSTimeInterval sleepDeadline;
 @property (nonatomic, assign) BOOL observingPlayer;
 
@@ -151,12 +151,12 @@ static void *OTPlayerItemStatusContext = &OTPlayerItemStatusContext;
 
 - (BOOL)sleepTimerActive
 {
-    return self.sleepTimer != nil;
+    return self.sleepTimerInstance != nil;
 }
 
 - (NSInteger)sleepTimerRemaining
 {
-    if (!self.sleepTimer || self.sleepDeadline <= 0) {
+    if (!self.sleepTimerInstance || self.sleepDeadline <= 0) {
         return 0;
     }
     return (NSInteger)MAX(0.0, self.sleepDeadline - [[NSDate date] timeIntervalSince1970]);
@@ -621,7 +621,7 @@ static void *OTPlayerItemStatusContext = &OTPlayerItemStatusContext;
         return;
     }
     self.sleepDeadline = [[NSDate date] timeIntervalSince1970] + seconds;
-    self.sleepTimer = [NSTimer scheduledTimerWithTimeInterval:seconds
+    self.sleepTimerInstance = [NSTimer scheduledTimerWithTimeInterval:seconds
                                                        target:self
                                                      selector:@selector(sleepTimerFired:)
                                                      userInfo:nil
@@ -631,15 +631,15 @@ static void *OTPlayerItemStatusContext = &OTPlayerItemStatusContext;
 
 - (void)cancelSleepTimer
 {
-    [self.sleepTimer invalidate];
-    self.sleepTimer = nil;
+    [self.sleepTimerInstance invalidate];
+    self.sleepTimerInstance = nil;
     self.sleepDeadline = 0;
     [[NSNotificationCenter defaultCenter] postNotificationName:OTPlayerStateDidChangeNotification object:self];
 }
 
 - (void)sleepTimerFired:(NSTimer *)timer
 {
-    self.sleepTimer = nil;
+    self.sleepTimerInstance = nil;
     self.sleepDeadline = 0;
     [self pause];
     [[NSNotificationCenter defaultCenter] postNotificationName:OTPlayerErrorNotification
