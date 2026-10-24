@@ -25,6 +25,12 @@ make clean && make package FINALPACKAGE=1 PACKAGE_FORMAT=ipa
 
 El `.ipa` se publica en **Releases** y en **Artefactos**.
 
+## Estado
+
+✅ Compila en GitHub Actions (Theos, armv7 + SDK 9.3, ~1 min) y el Release
+`build-…` contiene el IPA verificado: `armv7`, mínimo iOS 9.0, firmado con
+`ldid` (listo para AppSync Unified).
+
 ## Licencia
 
 GNU General Public License v3.0 — ver [LICENSE](LICENSE). Port no oficial; no

@@ -56,21 +56,21 @@ tools/
 
 ## Compilar en GitHub Actions
 
-1. Crea un repositorio **vacío** en GitHub.
-2. Sube el proyecto:
+El proyecto ya está publicado en **https://github.com/lofturb/IOpenTune** y el
+workflow compila el IPA automáticamente. El último Release con el `.ipa`
+firmado está en **Releases** (etiqueta `build-…`).
+
+Para recompilar tras cambios:
 
 ```powershell
-git init
 git add .
-git commit -m "OpenTune 9 para iOS 9"
-git branch -M main
-git remote add origin https://github.com/TU-USUARIO/TU-REPO.git
-git push -u origin main
+git commit -m "cambios"
+git push origin main
 ```
 
-3. El workflow **Construir IPA (iOS 9 / armv7)** se ejecuta solo. También puedes
-   lanzarlo a mano con **Run workflow**.
-4. Al terminar, descarga el `.ipa` desde **Releases** o **Artefactos**.
+También puedes lanzarlo a mano con **Run workflow** en la pestaña Actions
+(o `gh workflow run build-ipa.yml`). El IPA queda publicado en **Releases**
+y en **Artefactos**.
 
 El workflow comprueba antes de publicar:
 
