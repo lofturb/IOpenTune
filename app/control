@@ -1,0 +1,10 @@
+Package: com.lofturb.opentune9
+Name: OpenTune 9
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: Cliente de YouTube Music con Material Design 3, port nativo para iOS 9 (armv7).
+Homepage: https://opentune.netlify.app/
+Maintainer: lofturb
+Author: lofturb (port) / Arturo254 (OpenTune original)
+Section: Applications
+Depends: firmware (>= 9.0)

@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>es_ES</string>
+	<key>CFBundleDisplayName</key>
+	<string>OpenTune 9</string>
+	<key>CFBundleExecutable</key>
+	<string>OpenTune9</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.lofturb.opentune9</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>OpenTune 9</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0.0</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleVersion</key>
+	<string>1.0.0</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>MinimumOSVersion</key>
+	<string>9.0</string>
+	<key>UIDeviceFamily</key>
+	<array>
+		<integer>1</integer>
+		<integer>2</integer>
+	</array>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+	</array>
+
+	<!-- Interfaz oscura: barras y barra de estado claras. -->
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleLightContent</string>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+	<key>UIUserInterfaceStyle</key>
+	<string>Dark</string>
+
+	<!-- Reproduccion en segundo plano al bloquear el iPad. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
+
+	<!-- Las descargas guardadas en Documents/Descargas se ven en Filza. -->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+
+	<!-- iOS 9 trae raices TLS antiguas; permitimos cargas arbitrarias
+	     para que funcionen las miniaturas y el audio de YouTube. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+
+	<key>CFBundleIcons</key>
+	<dict>
+		<key>CFBundlePrimaryIcon</key>
+		<dict>
+			<key>CFBundleIconFiles</key>
+			<array>
+				<string>Icon-Small</string>
+				<string>Icon-Small-40</string>
+				<string>Icon-60</string>
+			</array>
+		</dict>
+	</dict>
+	<key>CFBundleIcons~ipad</key>
+	<dict>
+		<key>CFBundlePrimaryIcon</key>
+		<dict>
+			<key>CFBundleIconFiles</key>
+			<array>
+				<string>Icon-Small</string>
+				<string>Icon-Small-40</string>
+				<string>Icon-76</string>
+			</array>
+		</dict>
+	</dict>
+
+	<!-- Sin UILaunchImages iOS 9 arranca a 320x480 y escala. -->
+	<key>UILaunchImages</key>
+	<array>
+		<dict>
+			<key>UILaunchImageName</key>
+			<string>LaunchImage-700</string>
+			<key>UILaunchImageSize</key>
+			<string>{320, 480}</string>
+			<key>UILaunchImageMinimumOSVersion</key>
+			<string>8.0</string>
+			<key>UILaunchImageOrientation</key>
+			<string>Portrait</string>
+		</dict>
+		<dict>
+			<key>UILaunchImageName</key>
+			<string>LaunchImage-700-568h</string>
+			<key>UILaunchImageSize</key>
+			<string>{320, 568}</string>
+			<key>UILaunchImageMinimumOSVersion</key>
+			<string>8.0</string>
+			<key>UILaunchImageOrientation</key>
+			<string>Portrait</string>
+		</dict>
+		<dict>
+			<key>UILaunchImageName</key>
+			<string>LaunchImage-700-Portrait</string>
+			<key>UILaunchImageSize</key>
+			<string>{768, 1024}</string>
+			<key>UILaunchImageMinimumOSVersion</key>
+			<string>8.0</string>
+			<key>UILaunchImageOrientation</key>
+			<string>Portrait</string>
+		</dict>
+		<dict>
+			<key>UILaunchImageName</key>
+			<string>LaunchImage-700-Landscape</string>
+			<key>UILaunchImageSize</key>
+			<string>{768, 1024}</string>
+			<key>UILaunchImageMinimumOSVersion</key>
+			<string>8.0</string>
+			<key>UILaunchImageOrientation</key>
+			<string>Landscape</string>
+		</dict>
+	</array>
+
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+</dict>
+</plist>
