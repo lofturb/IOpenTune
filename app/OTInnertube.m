@@ -903,7 +903,7 @@ NSArray<OTSection *> *OTParseSections(NSDictionary *json)
                 if (item) [items addObject:item];
             }
             if (items.count == 0) continue;
-            NSString *key = [NSString stringWithFormat:@"c|%@|%@", title ?: @"", items[0].itemId ?: @""];
+            NSString *key = [NSString stringWithFormat:@"c|%@|%@", title ?: @"", ((OTItem *)items[0]).itemId ?: @""];
             if ([seen containsObject:key]) continue;
             [seen addObject:key];
             OTSection *section = [OTSection sectionWithTitle:title items:items style:OTSectionStyleCarousel];
@@ -926,7 +926,7 @@ NSArray<OTSection *> *OTParseSections(NSDictionary *json)
                 [items addObject:item];
             }
             if (items.count == 0) continue;
-            NSString *key = [NSString stringWithFormat:@"s|%@|%@", title ?: @"", items[0].itemId ?: @""];
+            NSString *key = [NSString stringWithFormat:@"s|%@|%@", title ?: @"", ((OTItem *)items[0]).itemId ?: @""];
             if ([seen containsObject:key]) continue;
             [seen addObject:key];
 

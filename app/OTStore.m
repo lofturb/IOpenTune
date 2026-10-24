@@ -145,7 +145,7 @@ static NSString *const OTKeyQuality = @"ot.audioQuality";
     NSMutableArray *items = [[self favoriteItems] mutableCopy];
     NSInteger found = -1;
     for (NSInteger i = 0; i < items.count; i++) {
-        if ([items[i].itemId isEqualToString:item.itemId]) {
+        if ([((OTItem *)items[i]).itemId isEqualToString:item.itemId]) {
             found = i;
             break;
         }
@@ -177,7 +177,7 @@ static NSString *const OTKeyQuality = @"ot.audioQuality";
     NSMutableArray *items = [[self itemsForKey:OTKeyHistory] mutableCopy];
     NSInteger found = -1;
     for (NSInteger i = 0; i < items.count; i++) {
-        if ([items[i].itemId isEqualToString:item.itemId]) {
+        if ([((OTItem *)items[i]).itemId isEqualToString:item.itemId]) {
             found = i;
             break;
         }
@@ -243,7 +243,7 @@ static NSString *const OTKeyQuality = @"ot.audioQuality";
 {
     NSMutableArray *all = [[self playlists] mutableCopy];
     for (NSInteger i = 0; i < all.count; i++) {
-        if ([all[i].playlistId isEqualToString:playlistId]) {
+        if ([((OTPlaylist *)all[i]).playlistId isEqualToString:playlistId]) {
             [all removeObjectAtIndex:i];
             break;
         }
