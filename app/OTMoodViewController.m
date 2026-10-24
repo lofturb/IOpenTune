@@ -77,8 +77,8 @@ static UIColor *OTColorFromValue(NSUInteger value)
         }
         NSArray<OTSection *> *sections = OTParseSections(json);
         [strongSelf setFeedSections:sections continuation:OTContinuationFromJSON(json) append:NO];
-        strongSelf.paginationBlock = ^{
-            [strongSelf loadMore];
+        weakSelf.paginationBlock = ^{
+            [weakSelf loadMore];
         };
     }];
 }

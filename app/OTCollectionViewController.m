@@ -26,7 +26,6 @@
     if (self) {
         _collectionType = OTItemTypePlaylist;
         _collectionTitle = @"";
-        _screenTitle = @"";
     }
     return self;
 }
@@ -108,8 +107,8 @@
         if (sections.count == 0) {
             [strongSelf showEmptyMessage:@"Contenido vacío" subtitle:@"No hay nada que mostrar aquí."];
         }
-        strongSelf.paginationBlock = ^{
-            [strongSelf loadMore];
+        weakSelf.paginationBlock = ^{
+            [weakSelf loadMore];
         };
     }];
 }

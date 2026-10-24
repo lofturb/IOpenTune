@@ -156,8 +156,8 @@
             [strongSelf showEmptyMessage:@"Sin resultados"
                                 subtitle:[NSString stringWithFormat:@"No encontramos nada para «%@».", strongSelf.query]];
         }
-        strongSelf.paginationBlock = ^{
-            [strongSelf loadMore];
+        weakSelf.paginationBlock = ^{
+            [weakSelf loadMore];
         };
     }];
 }
