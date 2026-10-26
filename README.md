@@ -31,6 +31,11 @@ El `.ipa` se publica en **Releases** y en **Artefactos**.
 `build-…` contiene el IPA verificado: `armv7`, mínimo iOS 9.0, firmado con
 `ldid` (listo para AppSync Unified).
 
+La versión **1.0.1** añade el diagnóstico del bloqueo anti-bot de YouTube
+(`LOGIN_REQUIRED`), reintentos por cliente y prioridad a la sesión iniciada.
+Para reproducir la mayoría de canciones hay que pegar la cookie `SAPISID` en
+Ajustes → Cuenta (detalles en [LEEME.md](LEEME.md)).
+
 ## Licencia
 
 GNU General Public License v3.0 — ver [LICENSE](LICENSE). Port no oficial; no

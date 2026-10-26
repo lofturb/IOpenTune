@@ -33,6 +33,33 @@ static NSString *OTSHA1String(NSString *string)
     return output;
 }
 
+static id OTDeepValueForKey(id node, NSString *key, NSInteger depth)
+{
+    if (depth > 8 || node == nil) {
+        return nil;
+    }
+    if ([node isKindOfClass:[NSDictionary class]]) {
+        id direct = ((NSDictionary *)node)[key];
+        if (direct) {
+            return direct;
+        }
+        for (id value in [((NSDictionary *)node) allValues]) {
+            id found = OTDeepValueForKey(value, key, depth + 1);
+            if (found) {
+                return found;
+            }
+        }
+    } else if ([node isKindOfClass:[NSArray class]]) {
+        for (id value in (NSArray *)node) {
+            id found = OTDeepValueForKey(value, key, depth + 1);
+            if (found) {
+                return found;
+            }
+        }
+    }
+    return nil;
+}
+
 static NSDictionary *OTWebRemixClient(void)
 {
     return @{
@@ -170,6 +197,27 @@ static NSDictionary *OTAndroidMusicClient(void)
 {
     self.cookie = nil;
     self.dataSyncId = nil;
+}
+
+- (void)validateLoginWithCompletion:(void (^)(BOOL, NSError *))completion
+{
+    if (completion == nil) {
+        return;
+    }
+    if (![self isLoggedIn]) {
+        completion(NO, [self errorWithMessage:@"No hay ninguna sesión guardada"]);
+        return;
+    }
+    NSDictionary *client = OTWebRemixClient();
+    NSDictionary *body = @{@"context": [self contextForClient:client]};
+    [self postEndpoint:@"account/account_menu" body:body client:client completion:^(NSDictionary *json, NSError *error) {
+        if (error) {
+            completion(NO, error);
+            return;
+        }
+        id accountName = OTDeepValueForKey(json, @"accountName", 0);
+        completion(accountName != nil, nil);
+    }];
 }
 
 #pragma mark - HTTP
@@ -627,6 +675,15 @@ static NSDictionary *OTAndroidMusicClient(void)
     [self streamURLForVideo:videoId avoidMime:nil completion:completion];
 }
 
+- (NSArray *)streamClientsForSession
+{
+    // Si hay sesión iniciada, los clientes que admiten login van primero.
+    if ([self isLoggedIn]) {
+        return @[OTAndroidMusicClient(), OTVrClient(), OTIOSClient(), OTIPadClient(), OTWebRemixClient()];
+    }
+    return @[OTVrClient(), OTIOSClient(), OTIPadClient(), OTAndroidMusicClient(), OTWebRemixClient()];
+}
+
 - (void)streamURLForVideo:(NSString *)videoId
                 avoidMime:(NSString *)avoidMime
                completion:(OTStreamCompletion)completion
@@ -635,23 +692,43 @@ static NSDictionary *OTAndroidMusicClient(void)
         completion(nil, nil, nil, [self errorWithMessage:@"Canción sin identificador"]);
         return;
     }
-    NSArray *clients = @[OTVrClient(), OTIOSClient(), OTIPadClient(), OTAndroidMusicClient(), OTWebRemixClient()];
-    [self tryStreamClients:clients
+    NSMutableDictionary *note = [NSMutableDictionary dictionary];
+    [self tryStreamClients:[self streamClientsForSession]
                      index:0
+                   attempt:0
                    videoId:videoId
                  avoidMime:avoidMime
+                      note:note
                 completion:completion];
 }
 
 - (void)tryStreamClients:(NSArray *)clients
                    index:(NSInteger)index
+                 attempt:(NSInteger)attempt
                  videoId:(NSString *)videoId
                avoidMime:(NSString *)avoidMime
+                    note:(NSMutableDictionary *)note
               completion:(OTStreamCompletion)completion
 {
     if (index >= (NSInteger)clients.count) {
-        completion(nil, nil, nil, [self errorWithMessage:
-            @"YouTube no devolvió un audio reproducible. Prueba otra canción o inicia sesión."]);
+        BOOL needsLogin = [note[@"login"] boolValue];
+        NSString *message;
+        if (needsLogin && ![self isLoggedIn]) {
+            message = @"YouTube exige iniciar sesión para reproducir muchas canciones (control anti-bot). Abre Ajustes → Cuenta e inicia sesión con tu cookie de music.youtube.com.";
+        } else if (needsLogin) {
+            message = @"YouTube rechazó esta canción. Puede que tu sesión haya caducado: vuelve a iniciar sesión en Ajustes → Cuenta.";
+        } else {
+            NSString *reason = OTSafeString(note[@"reason"]);
+            if (reason.length > 0) {
+                if (reason.length > 120) {
+                    reason = [reason substringToIndex:120];
+                }
+                message = [NSString stringWithFormat:@"YouTube no puede reproducir esta canción: %@", reason];
+            } else {
+                message = @"YouTube no devolvió un audio reproducible. Prueba otra canción.";
+            }
+        }
+        completion(nil, nil, nil, [self errorWithMessage:message]);
         return;
     }
 
@@ -662,15 +739,53 @@ static NSDictionary *OTAndroidMusicClient(void)
     body[@"contentCheckOk"] = @YES;
     body[@"racyCheckOk"] = @YES;
 
+    __weak typeof(self) weakSelf = self;
     [self postEndpoint:@"player" body:body client:client completion:^(NSDictionary *json, NSError *error) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) {
+            return;
+        }
+
+        void (^next)(void) = ^{
+            // El control anti-bot de YouTube es intermitente: reintentamos una vez
+            // con el mismo cliente antes de pasar al siguiente.
+            if (attempt < 1) {
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)),
+                               dispatch_get_main_queue(), ^{
+                    [strongSelf tryStreamClients:clients
+                                           index:index
+                                         attempt:attempt + 1
+                                         videoId:videoId
+                                       avoidMime:avoidMime
+                                            note:note
+                                      completion:completion];
+                });
+            } else {
+                [strongSelf tryStreamClients:clients
+                                       index:index + 1
+                                     attempt:0
+                                     videoId:videoId
+                                   avoidMime:avoidMime
+                                        note:note
+                                  completion:completion];
+            }
+        };
+
         if (error) {
-            [self tryStreamClients:clients index:index + 1 videoId:videoId avoidMime:avoidMime completion:completion];
+            next();
             return;
         }
         NSDictionary *status = OTSafeDictionary(json[@"playabilityStatus"]);
         NSString *state = OTSafeString(status[@"status"]);
         if (![state isEqualToString:@"OK"]) {
-            [self tryStreamClients:clients index:index + 1 videoId:videoId avoidMime:avoidMime completion:completion];
+            if ([state isEqualToString:@"LOGIN_REQUIRED"]) {
+                note[@"login"] = @YES;
+            }
+            NSString *reason = OTSafeString(status[@"reason"]);
+            if (reason.length > 0) {
+                note[@"reason"] = reason;
+            }
+            next();
             return;
         }
 
@@ -702,19 +817,19 @@ static NSDictionary *OTAndroidMusicClient(void)
         }
 
         if (candidates.count == 0) {
-            [self tryStreamClients:clients index:index + 1 videoId:videoId avoidMime:avoidMime completion:completion];
+            next();
             return;
         }
 
-        NSArray *ordered = [self orderCandidates:candidates quality:[[OTStore sharedStore] audioQuality]];
-        [self tryCandidates:ordered
-                        at:0
-                      body:nil
-                  videoId:videoId
-                avoidMime:avoidMime
-                   clients:clients
-               clientIndex:index
-                completion:completion];
+        NSArray *ordered = [strongSelf orderCandidates:candidates quality:[[OTStore sharedStore] audioQuality]];
+        [strongSelf tryCandidates:ordered
+                               at:0
+                          videoId:videoId
+                        avoidMime:avoidMime
+                          clients:clients
+                      clientIndex:index
+                             note:note
+                       completion:completion];
     }];
 }
 
@@ -738,26 +853,28 @@ static NSDictionary *OTAndroidMusicClient(void)
 
 - (void)tryCandidates:(NSArray *)candidates
                    at:(NSInteger)index
-                 body:(NSDictionary *)unused
               videoId:(NSString *)videoId
             avoidMime:(NSString *)avoidMime
               clients:(NSArray *)clients
           clientIndex:(NSInteger)clientIndex
+                 note:(NSMutableDictionary *)note
            completion:(OTStreamCompletion)completion
 {
     if (index >= (NSInteger)candidates.count) {
         [self tryStreamClients:clients
                          index:clientIndex + 1
+                       attempt:0
                        videoId:videoId
                      avoidMime:avoidMime
+                          note:note
                     completion:completion];
         return;
     }
     NSDictionary *candidate = candidates[index];
     NSURL *url = [NSURL URLWithString:candidate[@"url"]];
     if (!url) {
-        [self tryCandidates:candidates at:index + 1 body:nil videoId:videoId avoidMime:avoidMime
-                    clients:clients clientIndex:clientIndex completion:completion];
+        [self tryCandidates:candidates at:index + 1 videoId:videoId avoidMime:avoidMime
+                    clients:clients clientIndex:clientIndex note:note completion:completion];
         return;
     }
 
@@ -772,11 +889,11 @@ static NSDictionary *OTAndroidMusicClient(void)
         } else {
             [strongSelf tryCandidates:candidates
                                    at:index + 1
-                                 body:nil
                               videoId:videoId
                             avoidMime:avoidMime
                               clients:clients
                           clientIndex:clientIndex
+                                 note:note
                            completion:completion];
         }
     }];

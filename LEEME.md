@@ -106,16 +106,42 @@ Después, en el iPad: **Filza → /var/mobile/Media → OpenTune9.ipa → Instal
   velocidad, cola y letras sincronizadas.
 - **Descargas:** se guardan en `Documents/Descargas` como `.m4a` y aparecen en
   la pestaña Descargas y en Filza.
-- **Cuenta:** en Ajustes puedes pegar la cookie `SAPISID` de
-  `music.youtube.com` para iniciar sesión.
+- **Cuenta:** en Ajustes → Cuenta pega la cookie `SAPISID` de
+  `music.youtube.com`. Es necesaria para reproducir la mayoría de canciones
+  (ver la sección del bloqueo anti-bot).
+
+## Reproducción: bloqueo anti-bot de YouTube (2026)
+
+Desde 2026 YouTube exige un **token PO** o una **sesión iniciada** para servir
+el audio de la mayoría de canciones. Sin sesión, Innertube responde
+`LOGIN_REQUIRED` con el motivo *"Sign in to confirm you're not a bot"* y el
+reproductor se queda sin URL. No es un fallo del port: el proyecto original fue
+retirado por DMCA (GitHub, 2-sep-2026) y todas las apps de terceros sufren el
+mismo bloqueo.
+
+Solución en OpenTune 9 (1.0.1):
+
+- **Inicia sesión** en Ajustes → Cuenta pegando la cookie `SAPISID` (o la línea
+  completa de cookies) de `music.youtube.com`. Con sesión, YouTube entrega el
+  audio con normalidad.
+- La app reintenta cada cliente una vez y, cuando hay sesión, prueba primero los
+  clientes que admiten login (`ANDROID_MUSIC`).
+- Si el audio no llega, el reproductor muestra el motivo real devuelto por
+  YouTube en lugar de un error genérico.
+
+Cómo obtener la cookie: en un ordenador entra en `music.youtube.com`, pulsa F12
+→ Application/Storage → Cookies → `music.youtube.com` y copia el valor de
+`SAPISID`. Caduca al cerrar sesión en el navegador.
 
 ## Notas técnicas
 
 - `TARGET = iphone:clang:9.3:9.0`, `ARCHS = armv7`, `GO_EASY_ON_ME = 1`.
 - Audio con **AVPlayer** y sesión `AVAudioSessionCategoryPlayback`; se admiten
   pistas AAC (`audio/mp4`), que es lo que entrega Innertube a clientes de iOS.
-- El cliente Innertube preferido es `ANDROID_VR` (URLs directas); si falla se
-  prueban `IOS`, `IPADOS`, `ANDROID_MUSIC` y `WEB_REMIX`.
+- El cliente Innertube preferido es `ANDROID_VR` (URLs directas); con sesión se
+  prueba antes `ANDROID_MUSIC`. Si falla, se prueban `IOS`, `IPADOS` y
+  `WEB_REMIX`, con un reintento por cliente (el control anti-bot es
+  intermitente).
 - Las letras se piden primero a **LRCLIB** (LRC sincronizado) y después al
   endpoint de letras de YouTube Music.
 - El tema oscuro M3 se genera a partir de la semilla `#ED5564` del OpenTune

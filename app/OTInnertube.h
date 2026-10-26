@@ -36,6 +36,7 @@ typedef void (^OTStreamCompletion)(NSURL *url, NSString *mimeType, NSString *cli
 
 - (BOOL)isLoggedIn;
 - (void)clearLogin;
+- (void)validateLoginWithCompletion:(void (^)(BOOL valid, NSError *error))completion;
 
 // Navegacion
 - (void)homeWithCompletion:(OTFeedCompletion)completion;

@@ -144,7 +144,7 @@
     if (indexPath.section == 0) {
         BOOL loggedIn = [[OTInnertube shared] isLoggedIn];
         cell.textLabel.text = loggedIn ? @"Cerrar sesión" : @"Iniciar sesión";
-        cell.detailTextLabel.text = loggedIn ? @"Sesión iniciada" : @"Sin sesión";
+        cell.detailTextLabel.text = loggedIn ? @"Sesión iniciada" : @"Recomendada";
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
     } else if (indexPath.section == 1) {
         if (indexPath.row == 0) {
@@ -258,7 +258,7 @@
 - (void)showLogin
 {
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Iniciar sesión"
-                                                                   message:@"Pega la cookie SAPISID de music.youtube.com.\n\nEn un navegador de escritorio abre music.youtube.com, entra en tu cuenta y copia el valor de la cookie SAPISID (o la cadena completa con SAPISID=…)."
+                                                                   message:@"YouTube exige una sesión para reproducir la mayoría de canciones (control anti-bot).\n\n1) En un ordenador entra en music.youtube.com con tu cuenta.\n2) Pulsa F12 → Application/Storage → Cookies → music.youtube.com.\n3) Copia el valor de SAPISID y pégalo aquí (también vale pegar la línea completa de cookies con SAPISID=…)."
                                                             preferredStyle:UIAlertControllerStyleAlert];
     [alert addTextFieldWithConfigurationHandler:^(UITextField *textField) {
         textField.placeholder = @"SAPISID=…";
@@ -277,7 +277,13 @@
         }
         [OTInnertube shared].cookie = text;
         [weakSelf.tableView reloadData];
-        [OTTheme showToast:@"Sesión iniciada" inView:weakSelf.view];
+        [[OTInnertube shared] validateLoginWithCompletion:^(BOOL valid, NSError *error) {
+            if (valid) {
+                [OTTheme showToast:@"Sesión iniciada" inView:weakSelf.view];
+            } else {
+                [OTTheme showToast:@"Cookie guardada, pero YouTube no confirmó la sesión" inView:weakSelf.view];
+            }
+        }];
     }]];
     [alert addAction:[UIAlertAction actionWithTitle:@"Cancelar" style:UIAlertActionStyleCancel handler:nil]];
     [self presentViewController:alert animated:YES completion:nil];
