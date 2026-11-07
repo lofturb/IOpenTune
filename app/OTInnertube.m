@@ -89,6 +89,25 @@ static NSDictionary *OTVrClient(void)
     };
 }
 
+static NSDictionary *OTVisionOSClient(void)
+{
+    // Cliente de YouTube para Apple Vision Pro: sus URLs no necesitan
+    // deobfuscacion de firma, ni transformacion n, ni token PO, y sirven
+    // la pista completa (a diferencia de ANDROID_VR, que caduca al minuto).
+    return @{
+        @"clientName": @"VISIONOS",
+        @"clientVersion": @"0.1",
+        @"clientId": @"101",
+        @"userAgent": @"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
+        @"osName": @"visionOS",
+        @"osVersion": @"1.3.21O771",
+        @"deviceMake": @"Apple",
+        @"deviceModel": @"RealityDevice14,1",
+        @"loginSupported": @NO,
+        @"useSignatureTimestamp": @NO
+    };
+}
+
 static NSDictionary *OTIOSClient(void)
 {
     return @{
@@ -679,9 +698,53 @@ static NSDictionary *OTAndroidMusicClient(void)
 {
     // Si hay sesión iniciada, los clientes que admiten login van primero.
     if ([self isLoggedIn]) {
-        return @[OTAndroidMusicClient(), OTVrClient(), OTIOSClient(), OTIPadClient(), OTWebRemixClient()];
+        return @[OTVisionOSClient(), OTAndroidMusicClient(), OTVrClient(), OTIOSClient(), OTWebRemixClient()];
     }
-    return @[OTVrClient(), OTIOSClient(), OTIPadClient(), OTAndroidMusicClient(), OTWebRemixClient()];
+    return @[OTVisionOSClient(), OTVrClient(), OTIOSClient(), OTAndroidMusicClient(), OTWebRemixClient()];
+}
+
+- (NSString *)userAgentForClientName:(NSString *)clientName
+{
+    // AVPlayer debe pedir el medio con el mismo User-Agent del cliente que
+    // emitio la URL; si no, googlevideo la corta antes de terminar la pista.
+    if ([clientName isEqualToString:@"VISIONOS"]) {
+        return OTVisionOSClient()[@"userAgent"];
+    }
+    if ([clientName isEqualToString:@"ANDROID_VR"]) {
+        return OTUserAgentVR;
+    }
+    if ([clientName isEqualToString:@"IOS"]) {
+        return OTUserAgentIOS;
+    }
+    if ([clientName isEqualToString:@"ANDROID_MUSIC"]) {
+        return OTAndroidMusicClient()[@"userAgent"];
+    }
+    if ([clientName isEqualToString:@"WEB_REMIX"]) {
+        return OTUserAgentWeb;
+    }
+    return OTUserAgentVR;
+}
+
+- (void)finishStreamFailure:(NSDictionary *)note completion:(OTStreamCompletion)completion
+{
+    BOOL needsLogin = [note[@"login"] boolValue];
+    NSString *message;
+    if (needsLogin && ![self isLoggedIn]) {
+        message = @"YouTube ha bloqueado esta conexión (control anti-bot). Inicia sesión en Ajustes → Cuenta o pulsa ▶ para reintentar en unos minutos.";
+    } else if (needsLogin) {
+        message = @"YouTube rechazó esta canción. Puede que tu sesión haya caducado: vuelve a iniciar sesión en Ajustes → Cuenta.";
+    } else {
+        NSString *reason = OTSafeString(note[@"reason"]);
+        if (reason.length > 0) {
+            if (reason.length > 120) {
+                reason = [reason substringToIndex:120];
+            }
+            message = [NSString stringWithFormat:@"YouTube no puede reproducir esta canción: %@", reason];
+        } else {
+            message = @"YouTube no devolvió un audio reproducible. Prueba otra canción.";
+        }
+    }
+    completion(nil, nil, nil, [self errorWithMessage:message]);
 }
 
 - (void)streamURLForVideo:(NSString *)videoId
@@ -711,24 +774,7 @@ static NSDictionary *OTAndroidMusicClient(void)
               completion:(OTStreamCompletion)completion
 {
     if (index >= (NSInteger)clients.count) {
-        BOOL needsLogin = [note[@"login"] boolValue];
-        NSString *message;
-        if (needsLogin && ![self isLoggedIn]) {
-            message = @"YouTube exige iniciar sesión para reproducir muchas canciones (control anti-bot). Abre Ajustes → Cuenta e inicia sesión con tu cookie de music.youtube.com.";
-        } else if (needsLogin) {
-            message = @"YouTube rechazó esta canción. Puede que tu sesión haya caducado: vuelve a iniciar sesión en Ajustes → Cuenta.";
-        } else {
-            NSString *reason = OTSafeString(note[@"reason"]);
-            if (reason.length > 0) {
-                if (reason.length > 120) {
-                    reason = [reason substringToIndex:120];
-                }
-                message = [NSString stringWithFormat:@"YouTube no puede reproducir esta canción: %@", reason];
-            } else {
-                message = @"YouTube no devolvió un audio reproducible. Prueba otra canción.";
-            }
-        }
-        completion(nil, nil, nil, [self errorWithMessage:message]);
+        [self finishStreamFailure:note completion:completion];
         return;
     }
 
@@ -746,9 +792,19 @@ static NSDictionary *OTAndroidMusicClient(void)
             return;
         }
 
-        void (^next)(void) = ^{
-            // El control anti-bot de YouTube es intermitente: reintentamos una vez
-            // con el mismo cliente antes de pasar al siguiente.
+        void (^advance)(void) = ^{
+            [strongSelf tryStreamClients:clients
+                                   index:index + 1
+                                 attempt:0
+                                 videoId:videoId
+                               avoidMime:avoidMime
+                                    note:note
+                              completion:completion];
+        };
+
+        if (error) {
+            // Solo un fallo de red merece reintento: el bloqueo anti-bot no
+            // cambia y repetir la petición solo alarga el castigo de YouTube.
             if (attempt < 1) {
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)),
                                dispatch_get_main_queue(), ^{
@@ -761,31 +817,28 @@ static NSDictionary *OTAndroidMusicClient(void)
                                       completion:completion];
                 });
             } else {
-                [strongSelf tryStreamClients:clients
-                                       index:index + 1
-                                     attempt:0
-                                     videoId:videoId
-                                   avoidMime:avoidMime
-                                        note:note
-                                  completion:completion];
+                advance();
             }
-        };
-
-        if (error) {
-            next();
             return;
         }
         NSDictionary *status = OTSafeDictionary(json[@"playabilityStatus"]);
         NSString *state = OTSafeString(status[@"status"]);
         if (![state isEqualToString:@"OK"]) {
-            if ([state isEqualToString:@"LOGIN_REQUIRED"]) {
+            BOOL loginRequired = [state isEqualToString:@"LOGIN_REQUIRED"];
+            if (loginRequired) {
                 note[@"login"] = @YES;
             }
             NSString *reason = OTSafeString(status[@"reason"]);
             if (reason.length > 0) {
                 note[@"reason"] = reason;
             }
-            next();
+            if (loginRequired && ![strongSelf isLoggedIn]) {
+                // El bloqueo afecta a toda la conexión, no a un cliente concreto:
+                // dejamos de pedir para no agravar el castigo anti-bot.
+                [strongSelf finishStreamFailure:note completion:completion];
+                return;
+            }
+            advance();
             return;
         }
 
@@ -817,7 +870,7 @@ static NSDictionary *OTAndroidMusicClient(void)
         }
 
         if (candidates.count == 0) {
-            next();
+            advance();
             return;
         }
 

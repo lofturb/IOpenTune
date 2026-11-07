@@ -29,11 +29,14 @@ static void *OTPlayerItemStatusContext = &OTPlayerItemStatusContext;
 @property (nonatomic, strong) AVPlayerItem *playerItem;
 @property (nonatomic, strong) id timeObserver;
 @property (nonatomic, assign) BOOL loading;
+@property (nonatomic, assign) BOOL needsReload;
 @property (nonatomic, assign) BOOL shouldResumeAfterInterruption;
 @property (nonatomic, assign) double trackStartTime;
 @property (nonatomic, strong) NSTimer *sleepTimerInstance;
 @property (nonatomic, assign) NSTimeInterval sleepDeadline;
 @property (nonatomic, assign) BOOL observingPlayer;
+
+- (void)startPlaybackWithURL:(NSURL *)url mimeType:(NSString *)mimeType userAgent:(NSString *)userAgent;
 
 @end
 
@@ -379,6 +382,7 @@ static void *OTPlayerItemStatusContext = &OTPlayerItemStatusContext;
     }
 
     self.loading = YES;
+    self.needsReload = NO;
     self.trackStartTime = 0;
     [self notifyState];
 
@@ -405,6 +409,9 @@ static void *OTPlayerItemStatusContext = &OTPlayerItemStatusContext;
         }
         if (!url) {
             strongSelf.loading = NO;
+            // Permite que ▶ vuelva a pedir el audio (la URL caduca o YouTube
+            // deja de bloquear con el tiempo).
+            strongSelf.needsReload = YES;
             [strongSelf notifyState];
             NSString *message = error.localizedDescription ?: @"No se pudo reproducir esta canción";
             [[NSNotificationCenter defaultCenter] postNotificationName:OTPlayerErrorNotification
@@ -412,15 +419,40 @@ static void *OTPlayerItemStatusContext = &OTPlayerItemStatusContext;
                                                               userInfo:@{@"message": message}];
             return;
         }
-        [strongSelf startPlaybackWithURL:url mimeType:mimeType];
+        NSString *userAgent = nil;
+        if (clientName.length > 0) {
+            userAgent = [[OTInnertube shared] userAgentForClientName:clientName];
+        }
+        [strongSelf startPlaybackWithURL:url mimeType:mimeType userAgent:userAgent];
     }];
 }
 
 - (void)startPlaybackWithURL:(NSURL *)url mimeType:(NSString *)mimeType
 {
+    [self startPlaybackWithURL:url mimeType:mimeType userAgent:nil];
+}
+
+- (void)startPlaybackWithURL:(NSURL *)url mimeType:(NSString *)mimeType userAgent:(NSString *)userAgent
+{
     [self removeItemObservers];
 
-    AVPlayerItem *playerItem = [AVPlayerItem playerItemWithURL:url];
+    AVPlayerItem *playerItem = nil;
+    if (userAgent.length > 0) {
+        // AVPlayer pide el medio con su propio User-Agent; googlevideo solo
+        // sirve la pista completa si la peticion lleva el UA del cliente que
+        // emitio la URL. AVURLAssetHTTPHeaderFieldsKey es la unica forma de
+        // fijarlo en iOS 9.
+        NSDictionary *headers = @{
+            @"User-Agent": userAgent,
+            @"Referer": @"https://music.youtube.com/",
+            @"Origin": @"https://music.youtube.com"
+        };
+        AVURLAsset *asset = [AVURLAsset URLAssetWithURL:url
+                                                options:@{@"AVURLAssetHTTPHeaderFieldsKey": headers}];
+        playerItem = [AVPlayerItem playerItemWithAsset:asset];
+    } else {
+        playerItem = [AVPlayerItem playerItemWithURL:url];
+    }
     playerItem.audioTimePitchAlgorithm = AVAudioTimePitchAlgorithmTimeDomain;
     self.playerItem = playerItem;
     [playerItem addObserver:self
@@ -469,6 +501,7 @@ static void *OTPlayerItemStatusContext = &OTPlayerItemStatusContext;
             [self updateNowPlayingMetadata];
         } else if (item.status == AVPlayerItemStatusFailed) {
             self.loading = NO;
+            self.needsReload = YES;
             [self notifyState];
             NSString *message = item.error.localizedDescription ?: @"No se pudo reproducir esta canción";
             [[NSNotificationCenter defaultCenter] postNotificationName:OTPlayerErrorNotification
@@ -485,6 +518,10 @@ static void *OTPlayerItemStatusContext = &OTPlayerItemStatusContext;
 - (void)play
 {
     if (!self.player && self.currentItem) {
+        [self loadCurrentTrack];
+        return;
+    }
+    if (self.needsReload) {
         [self loadCurrentTrack];
         return;
     }
