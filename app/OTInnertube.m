@@ -825,14 +825,24 @@ static NSDictionary *OTAndroidMusicClient(void)
         NSString *state = OTSafeString(status[@"status"]);
         if (![state isEqualToString:@"OK"]) {
             BOOL loginRequired = [state isEqualToString:@"LOGIN_REQUIRED"];
-            if (loginRequired) {
+            NSString *reason = OTSafeString(status[@"reason"]);
+            // Algunos clientes (VISIONOS) devuelven UNPLAYABLE con el mismo
+            // motivo anti-bot en lugar de LOGIN_REQUIRED.
+            BOOL botCheck = NO;
+            for (NSString *needle in @[@"not a bot", @"no eres un robot", @"no soy un robot",
+                                        @"confirm you", @"confirma que"]) {
+                if ([reason rangeOfString:needle options:NSCaseInsensitiveSearch].location != NSNotFound) {
+                    botCheck = YES;
+                    break;
+                }
+            }
+            if (loginRequired || botCheck) {
                 note[@"login"] = @YES;
             }
-            NSString *reason = OTSafeString(status[@"reason"]);
             if (reason.length > 0) {
                 note[@"reason"] = reason;
             }
-            if (loginRequired && ![strongSelf isLoggedIn]) {
+            if ((loginRequired || botCheck) && ![strongSelf isLoggedIn]) {
                 // El bloqueo afecta a toda la conexión, no a un cliente concreto:
                 // dejamos de pedir para no agravar el castigo anti-bot.
                 [strongSelf finishStreamFailure:note completion:completion];
