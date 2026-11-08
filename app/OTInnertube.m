@@ -20,6 +20,10 @@ static NSString *const OTUserAgentIOS =
     @"com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X;)";
 static NSString *const OTUserAgentIPad =
     @"com.google.ios.youtube/19.22.3 (iPad7,6; U; CPU iPadOS 17_7_10 like Mac OS X; en-US)";
+// Perfil de VISIONOS que usa yt-dlp (2026): es el que YouTube sigue sirviendo
+// sin token PO. El perfil antiguo (0.1) ya devuelve LOGIN_REQUIRED.
+static NSString *const OTUserAgentVisionOS =
+    @"Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15";
 
 static NSString *OTSHA1String(NSString *string)
 {
@@ -91,18 +95,20 @@ static NSDictionary *OTVrClient(void)
 
 static NSDictionary *OTVisionOSClient(void)
 {
-    // Cliente de YouTube para Apple Vision Pro: sus URLs no necesitan
+    // Perfil exacto de yt-dlp para VISIONOS: sus URLs no necesitan
     // deobfuscacion de firma, ni transformacion n, ni token PO, y sirven
-    // la pista completa (a diferencia de ANDROID_VR, que caduca al minuto).
+    // la pista completa. Requiere un visitorData valido y reciente.
     return @{
         @"clientName": @"VISIONOS",
-        @"clientVersion": @"0.1",
+        @"clientVersion": @"1.02",
         @"clientId": @"101",
-        @"userAgent": @"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
+        @"userAgent": OTUserAgentVisionOS,
         @"osName": @"visionOS",
-        @"osVersion": @"1.3.21O771",
+        @"osVersion": @"26.5.23O471",
         @"deviceMake": @"Apple",
-        @"deviceModel": @"RealityDevice14,1",
+        @"deviceModel": @"RealityDevice17,1",
+        @"origin": @"https://www.youtube.com",
+        @"referer": @"https://www.youtube.com/",
         @"loginSupported": @NO,
         @"useSignatureTimestamp": @NO
     };
@@ -156,6 +162,7 @@ static NSDictionary *OTAndroidMusicClient(void)
 
 @interface OTInnertube ()
 @property (nonatomic, strong) NSURLSession *session;
+@property (nonatomic, assign) BOOL visitorDataRefreshed;
 @end
 
 @implementation OTInnertube
@@ -319,7 +326,8 @@ static NSDictionary *OTAndroidMusicClient(void)
     if (completion == nil) {
         return;
     }
-    NSString *urlString = [@"https://music.youtube.com/youtubei/v1/" stringByAppendingString:endpoint];
+    NSString *apiOrigin = client[@"origin"] ?: @"https://music.youtube.com";
+    NSString *urlString = [apiOrigin stringByAppendingFormat:@"/youtubei/v1/%@", endpoint];
     if (query.count > 0) {
         NSMutableArray *parts = [NSMutableArray array];
         for (NSString *key in query) {
@@ -344,8 +352,10 @@ static NSDictionary *OTAndroidMusicClient(void)
     [request setValue:@"1" forHTTPHeaderField:@"X-Goog-Api-Format-Version"];
     [request setValue:client[@"clientId"] forHTTPHeaderField:@"X-YouTube-Client-Name"];
     [request setValue:client[@"clientVersion"] forHTTPHeaderField:@"X-YouTube-Client-Version"];
-    [request setValue:@"https://music.youtube.com" forHTTPHeaderField:@"X-Origin"];
-    [request setValue:@"https://music.youtube.com/" forHTTPHeaderField:@"Referer"];
+    NSString *origin = client[@"origin"] ?: @"https://music.youtube.com";
+    NSString *referer = client[@"referer"] ?: [origin stringByAppendingString:@"/"];
+    [request setValue:origin forHTTPHeaderField:@"X-Origin"];
+    [request setValue:referer forHTTPHeaderField:@"Referer"];
     [request setValue:client[@"userAgent"] forHTTPHeaderField:@"User-Agent"];
     if (self.visitorData.length > 0) {
         [request setValue:self.visitorData forHTTPHeaderField:@"X-Goog-Visitor-Id"];
@@ -747,14 +757,73 @@ static NSDictionary *OTAndroidMusicClient(void)
     completion(nil, nil, nil, [self errorWithMessage:message]);
 }
 
-- (void)streamURLForVideo:(NSString *)videoId
-                avoidMime:(NSString *)avoidMime
-               completion:(OTStreamCompletion)completion
+- (NSString *)visitorDataFromHTML:(NSString *)html
 {
-    if (videoId.length == 0) {
-        completion(nil, nil, nil, [self errorWithMessage:@"Canción sin identificador"]);
+    if (html.length == 0) {
+        return nil;
+    }
+    NSArray *patterns = @[
+        @"\"VISITOR_DATA\"\\s*:\\s*\"([^\"]+)\"",
+        @"\"visitorData\"\\s*:\\s*\"([^\"]+)\""
+    ];
+    for (NSString *pattern in patterns) {
+        NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern
+                                                                               options:0
+                                                                                 error:NULL];
+        NSTextCheckingResult *match = [regex firstMatchInString:html
+                                                        options:0
+                                                          range:NSMakeRange(0, html.length)];
+        if (match && match.numberOfRanges > 1) {
+            return [html substringWithRange:[match rangeAtIndex:1]];
+        }
+    }
+    return nil;
+}
+
+- (void)refreshVisitorDataWithCompletion:(void (^)(NSString *visitorData))completion
+{
+    // YouTube liga el visitante a la sesion: un visitorData viejo (o inventado)
+    // hace que /player responda LOGIN_REQUIRED aunque el cliente sea correcto.
+    // Se pide uno nuevo a la pagina de YouTube Music, que no pasa por Innertube.
+    if (completion == nil) {
         return;
     }
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:
+                                   [NSURL URLWithString:@"https://music.youtube.com/"]];
+    request.timeoutInterval = 15.0;
+    [request setValue:OTUserAgentVisionOS forHTTPHeaderField:@"User-Agent"];
+    [request setValue:@"es-ES,es;q=0.9,en;q=0.7" forHTTPHeaderField:@"Accept-Language"];
+
+    __weak typeof(self) weakSelf = self;
+    NSURLSessionDataTask *task = [self.session dataTaskWithRequest:request
+                                                completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        NSString *visitor = nil;
+        if (data.length > 0) {
+            NSString *html = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+            if (html.length == 0) {
+                html = [[NSString alloc] initWithData:data encoding:NSISOLatin1StringEncoding];
+            }
+            visitor = [weakSelf visitorDataFromHTML:html];
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) {
+                return;
+            }
+            if (visitor.length > 0) {
+                strongSelf.visitorData = visitor;
+                strongSelf.visitorDataRefreshed = YES;
+            }
+            completion(visitor);
+        });
+    }];
+    [task resume];
+}
+
+- (void)beginStreamResolutionForVideo:(NSString *)videoId
+                             avoidMime:(NSString *)avoidMime
+                            completion:(OTStreamCompletion)completion
+{
     NSMutableDictionary *note = [NSMutableDictionary dictionary];
     [self tryStreamClients:[self streamClientsForSession]
                      index:0
@@ -763,6 +832,31 @@ static NSDictionary *OTAndroidMusicClient(void)
                  avoidMime:avoidMime
                       note:note
                 completion:completion];
+}
+
+- (void)streamURLForVideo:(NSString *)videoId
+                avoidMime:(NSString *)avoidMime
+               completion:(OTStreamCompletion)completion
+{
+    if (videoId.length == 0) {
+        completion(nil, nil, nil, [self errorWithMessage:@"Canción sin identificador"]);
+        return;
+    }
+    if (self.visitorDataRefreshed) {
+        [self beginStreamResolutionForVideo:videoId avoidMime:avoidMime completion:completion];
+        return;
+    }
+    // Una sola peticion GET por sesion; evita el primer fallo por visitante viejo.
+    __weak typeof(self) weakSelf = self;
+    [self refreshVisitorDataWithCompletion:^(NSString *visitorData) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) {
+            return;
+        }
+        [strongSelf beginStreamResolutionForVideo:videoId
+                                        avoidMime:avoidMime
+                                       completion:completion];
+    }];
 }
 
 - (void)tryStreamClients:(NSArray *)clients
@@ -843,8 +937,26 @@ static NSDictionary *OTAndroidMusicClient(void)
                 note[@"reason"] = reason;
             }
             if ((loginRequired || botCheck) && ![strongSelf isLoggedIn]) {
-                // El bloqueo afecta a toda la conexión, no a un cliente concreto:
-                // dejamos de pedir para no agravar el castigo anti-bot.
+                // El visitante caduca: se renueva una vez y se reintenta la
+                // cadena desde el primer cliente. Si aun asi falla, se deja de
+                // pedir para no agravar el bloqueo.
+                if (![note[@"visitorRefreshed"] boolValue]) {
+                    note[@"visitorRefreshed"] = @YES;
+                    [strongSelf refreshVisitorDataWithCompletion:^(NSString *visitorData) {
+                        if (visitorData.length > 0) {
+                            [strongSelf tryStreamClients:clients
+                                                   index:0
+                                                 attempt:0
+                                                 videoId:videoId
+                                               avoidMime:avoidMime
+                                                    note:note
+                                              completion:completion];
+                        } else {
+                            [strongSelf finishStreamFailure:note completion:completion];
+                        }
+                    }];
+                    return;
+                }
                 [strongSelf finishStreamFailure:note completion:completion];
                 return;
             }
