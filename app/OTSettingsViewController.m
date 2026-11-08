@@ -471,8 +471,8 @@ typedef NS_ENUM(NSInteger, OTSettingsAction) {
                                      action:OTSettingsActionVersion];
     self.versionRow.valueLabel.hidden = NO;
     self.versionRow.chevronView.hidden = YES;
-    NSString *version = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleShortVersionString"] ?: @"1.0";
-    self.versionRow.valueLabel.text = version;
+    NSString *appVersion = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleShortVersionString"] ?: @"1.0";
+    self.versionRow.valueLabel.text = appVersion;
     [self addRowWithTitle:@"Licencia"
                  subtitle:@"GPL-3.0"
                      icon:OTIconShield

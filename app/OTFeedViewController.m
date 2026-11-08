@@ -295,8 +295,9 @@
     }
     [cell setCurrentTrack:[self isCurrentItem:item]];
     __weak typeof(self) weakSelf = self;
+    __weak OTItemCell *weakCell = cell;
     cell.moreHandler = ^(OTItem *selected) {
-        [weakSelf showMenuForItem:selected sourceView:cell.moreButton];
+        [weakSelf showMenuForItem:selected sourceView:weakCell.moreButton];
     };
     return cell;
 }

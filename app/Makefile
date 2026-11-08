@@ -49,6 +49,7 @@ OpenTune9_CFLAGS = -fobjc-arc \
 	-Wno-unused-parameter \
 	-Wno-nullability-completeness \
 	-Wno-objc-missing-super-calls \
+	-Wno-arc-performSelector-leaks \
 	-Wno-unused-variable \
 	-Wno-unused-function
 
