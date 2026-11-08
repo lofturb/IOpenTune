@@ -31,11 +31,11 @@ El `.ipa` se publica en **Releases** y en **Artefactos**.
 `build-…` contiene el IPA verificado: `armv7`, mínimo iOS 9.0, firmado con
 `ldid` (listo para AppSync Unified).
 
-La versión **1.0.3** añade el cliente `VISIONOS` (URLs válidas para toda la
-pista), envía el User-Agent del cliente al pedir el medio y se detiene en cuanto
-YouTube muestra el aviso anti-bot (en lugar de insistir y agravar el bloqueo).
-El botón ▶ reintenta la canción. Para reproducir la mayoría de canciones hay que
-pegar la cookie `SAPISID` en Ajustes → Cuenta (detalles en [LEEME.md](LEEME.md)).
+La versión **1.0.4** arregla la reproducción sin sesión: usa el perfil
+`VISIONOS` actual (el mismo que yt-dlp) y **renueva el `visitorData`** al
+empezar, que era lo que hacía que YouTube respondiera «Sign in to confirm you're
+not a bot». Probado contra YouTube: devuelve audio válido para toda la pista.
+El botón ▶ reintenta la canción.
 
 ## Licencia
 

@@ -119,17 +119,16 @@ reproductor se queda sin URL. No es un fallo del port: el proyecto original fue
 retirado por DMCA (GitHub, 2-sep-2026) y todas las apps de terceros sufren el
 mismo bloqueo.
 
-Solución en OpenTune 9 (1.0.3):
+Solución en OpenTune 9 (1.0.4):
 
-- **Inicia sesión** en Ajustes → Cuenta pegando la cookie `SAPISID` (o la línea
-  completa de cookies) de `music.youtube.com`. Con sesión, YouTube entrega el
-  audio con normalidad.
-- La app prueba primero el cliente `VISIONOS` (Apple Vision Pro), cuyas URLs no
-  necesitan token PO y sirven la pista completa, y pide el medio con el mismo
-  User-Agent del cliente que emitió la URL.
-- En cuanto YouTube devuelve el aviso anti-bot (`LOGIN_REQUIRED` o
-  *"Sign in to confirm you're not a bot"*), la app deja de pedir para no alargar
-  el castigo de la IP y muestra el motivo real. Pulsa ▶ para reintentar.
+- La app pide un **`visitorData` nuevo** a `music.youtube.com` al empezar
+  (una sola petición). YouTube liga el visitante a la sesión: con uno viejo o
+  inventado, `/player` responde `LOGIN_REQUIRED` aunque el cliente sea correcto.
+- Usa el perfil **`VISIONOS` actual** (el mismo que yt-dlp: versión 1.02,
+  `RealityDevice17,1`), cuyas URLs no necesitan token PO ni deobfuscación y
+  sirven la pista completa. El perfil antiguo (0.1) ya está bloqueado.
+- Si aun así aparece el aviso anti-bot, renueva el visitante una vez y reintenta;
+  después se detiene para no agravar el bloqueo. Pulsa ▶ para reintentar.
 - Con sesión iniciada se prueban primero los clientes que admiten login
   (`ANDROID_MUSIC`).
 
@@ -142,10 +141,11 @@ Cómo obtener la cookie: en un ordenador entra en `music.youtube.com`, pulsa F12
 - `TARGET = iphone:clang:9.3:9.0`, `ARCHS = armv7`, `GO_EASY_ON_ME = 1`.
 - Audio con **AVPlayer** y sesión `AVAudioSessionCategoryPlayback`; se admiten
   pistas AAC (`audio/mp4`), que es lo que entrega Innertube a clientes de iOS.
-- El cliente Innertube preferido es `VISIONOS` (URLs directas para toda la
-  pista); con sesión se prueba antes `ANDROID_MUSIC`. Si falla, se prueban
-  `ANDROID_VR`, `IOS` y `WEB_REMIX`. Ante el aviso anti-bot la app se detiene en
-  vez de reintentar, para no alargar el bloqueo temporal de la IP.
+- El cliente Innertube preferido es `VISIONOS` (perfil 1.02, el de yt-dlp),
+  con URLs directas para toda la pista y un `visitorData` renovado al empezar;
+  con sesión se prueba antes `ANDROID_MUSIC`. Si falla, se prueban
+  `ANDROID_VR`, `IOS` y `WEB_REMIX`. Ante el aviso anti-bot la app renueva el
+  visitante una vez y luego se detiene, para no alargar el bloqueo.
 - Las letras se piden primero a **LRCLIB** (LRC sincronizado) y después al
   endpoint de letras de YouTube Music.
 - El tema oscuro M3 se genera a partir de la semilla `#ED5564` del OpenTune
