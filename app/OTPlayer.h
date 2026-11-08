@@ -29,6 +29,10 @@ extern NSString *const OTPlayerQueueDidChangeNotification;
 @property (nonatomic, readonly) BOOL isLoading;
 @property (nonatomic, readonly) double currentTime;
 @property (nonatomic, readonly) double duration;
+// MIME de la pista que se esta reproduciendo (audio/webm, audio/mp4…).
+@property (nonatomic, readonly) NSString *currentMimeType;
+// Etiqueta corta para el chip del reproductor: WEBM, M4A, MP3…
+@property (nonatomic, readonly) NSString *currentFormatLabel;
 @property (nonatomic, assign) BOOL shuffle;
 @property (nonatomic, assign) OTRepeatMode repeatMode;
 @property (nonatomic, assign) float playbackRate;

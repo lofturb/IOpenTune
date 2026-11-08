@@ -52,7 +52,26 @@ typedef NS_ENUM(NSInteger, OTIcon) {
     OTIconSeekBack,
     OTIconSeekForward,
     OTIconMic,
-    OTIconGrid
+    OTIconGrid,
+    // Iconos del OpenTune original (barra superior, biblioteca y ajustes).
+    OTIconBell,
+    OTIconHistory,
+    OTIconTrending,
+    OTIconSync,
+    OTIconPalette,
+    OTIconShield,
+    OTIconStorage,
+    OTIconDiscord,
+    OTIconPuzzle,
+    OTIconFlame,
+    OTIconDragHandle,
+    OTIconLock,
+    OTIconEqualizer,
+    OTIconOutput,
+    OTIconMusicNote,
+    OTIconChevronUp,
+    OTIconNotificationsOff,
+    OTIconAccountCircle
 };
 
 // Colores del esquema M3 oscuro generado a partir de la semilla #ED5564.
@@ -64,14 +83,20 @@ typedef NS_ENUM(NSInteger, OTIcon) {
 // Superficies
 + (UIColor *)background;          // surface
 + (UIColor *)surface;             // surfaceContainerLow
++ (UIColor *)surfaceLow;          // surfaceContainerLowest
 + (UIColor *)surfaceContainer;    // surfaceContainer
 + (UIColor *)surfaceHigh;         // surfaceContainerHigh
 + (UIColor *)surfaceHighest;      // surfaceContainerHighest
 + (UIColor *)navBackground;
++ (UIColor *)cardBorder;          // borde de tarjetas (outlineVariant)
 + (UIColor *)text;
 + (UIColor *)secondaryText;
 + (UIColor *)separator;
 + (UIColor *)outline;
++ (UIColor *)outlineVariant;
++ (UIColor *)scrim;
++ (UIColor *)inverseSurface;
++ (UIColor *)onInverseSurface;
 
 // Acento (semilla configurable)
 + (UIColor *)primary;
@@ -91,7 +116,9 @@ typedef NS_ENUM(NSInteger, OTIcon) {
 + (void)applyArtworkColor:(UIColor *)color;   // color dinamico desde la portada
 + (void)clearArtworkColor;
 
-// Tipografia (escala M3)
+// Tipografia (escala M3, Poppins como el original)
++ (UIFont *)displayLarge;
++ (UIFont *)headlineLarge;
 + (UIFont *)displaySmall;
 + (UIFont *)headlineSmall;
 + (UIFont *)headlineMedium;
@@ -121,6 +148,8 @@ typedef NS_ENUM(NSInteger, OTIcon) {
 + (void)styleTableView:(UITableView *)tableView;
 + (void)styleCollectionView:(UICollectionView *)collectionView;
 + (void)roundCorners:(UIView *)view radius:(CGFloat)radius;
++ (void)styleCard:(UIView *)view;
++ (void)styleCard:(UIView *)view radius:(CGFloat)radius;
 + (void)applyShadow:(UIView *)view;
 
 + (void)showToast:(NSString *)text inView:(UIView *)view;

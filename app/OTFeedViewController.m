@@ -57,7 +57,7 @@
     self.tableView.delegate = self;
     self.tableView.backgroundColor = [OTTheme background];
     self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
-    self.tableView.rowHeight = 64.0;
+    self.tableView.rowHeight = 72.0;
     self.tableView.contentInset = UIEdgeInsetsMake(0, 0, OTBottomInset(), 0);
     self.tableView.scrollIndicatorInsets = self.tableView.contentInset;
     [self.tableView registerClass:[OTItemCell class] forCellReuseIdentifier:@"OTItemCell"];
@@ -94,11 +94,11 @@
     [super viewDidLayoutSubviews];
     CGFloat width = self.view.bounds.size.width;
     CGFloat top = self.topLayoutGuide.length;
-    CGFloat barHeight = top + 56.0;
+    CGFloat barHeight = top + 60.0;
     self.topBar.frame = CGRectMake(0, 0, width, barHeight);
-    self.topTitleLabel.frame = CGRectMake(16.0, top + 8.0, width - 120.0, 40.0);
-    self.leftButton.frame = CGRectMake(4.0, top + 6.0, 44.0, 44.0);
-    self.rightButton.frame = CGRectMake(width - 48.0, top + 6.0, 44.0, 44.0);
+    self.topTitleLabel.frame = CGRectMake(16.0, top + 8.0, width - 120.0, 44.0);
+    self.leftButton.frame = CGRectMake(4.0, top + 8.0, 44.0, 44.0);
+    self.rightButton.frame = CGRectMake(width - 48.0, top + 8.0, 44.0, 44.0);
     self.tableView.frame = CGRectMake(0, barHeight, width, self.view.bounds.size.height - barHeight);
     self.spinner.center = CGPointMake(width / 2.0, self.view.bounds.size.height / 2.0 - 40.0);
     self.emptyView.frame = CGRectMake(0, barHeight, width, self.view.bounds.size.height - barHeight - 80.0);
@@ -246,7 +246,7 @@
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath
 {
     OTSection *entry = self.sections[indexPath.section];
-    return entry.style == OTSectionStyleCarousel ? 206.0 : 64.0;
+    return entry.style == OTSectionStyleCarousel ? 244.0 : 72.0;
 }
 
 - (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section
@@ -288,6 +288,7 @@
 
     OTItemCell *cell = [tableView dequeueReusableCellWithIdentifier:@"OTItemCell" forIndexPath:indexPath];
     OTItem *item = section.items[indexPath.row];
+    cell.mosaicURLs = item.mosaicURLs;
     [cell configureWithItem:item index:0 showsArtwork:YES];
     if (section.title.length > 0 && [section.title isEqualToString:@"Mejor resultado"]) {
         cell.subtitleLabel.text = item.subtitle;
@@ -423,35 +424,33 @@
     if (!item) {
         return;
     }
-    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:item.title
-                                                                  message:[item displaySubtitle]
-                                                           preferredStyle:UIAlertControllerStyleActionSheet];
     __weak typeof(self) weakSelf = self;
+    NSMutableArray<OTSheetAction *> *actions = [NSMutableArray array];
 
     if (item.isPlayable) {
-        [sheet addAction:[UIAlertAction actionWithTitle:@"Reproducir"
-                                                   style:UIAlertActionStyleDefault
-                                                 handler:^(UIAlertAction *action) {
+        [actions addObject:[OTSheetAction actionWithTitle:@"Reproducir"
+                                                     icon:OTIconPlay
+                                                  handler:^{
             [weakSelf playItems:@[item] startingAt:item];
         }]];
-        [sheet addAction:[UIAlertAction actionWithTitle:@"Añadir a la cola"
-                                                   style:UIAlertActionStyleDefault
-                                                 handler:^(UIAlertAction *action) {
+        [actions addObject:[OTSheetAction actionWithTitle:@"Añadir a la cola"
+                                                     icon:OTIconQueue
+                                                  handler:^{
             [[OTPlayer sharedPlayer] addToQueue:item];
             [OTTheme showToast:@"Añadido a la cola" inView:weakSelf.view];
         }]];
     }
 
-    [sheet addAction:[UIAlertAction actionWithTitle:@"Añadir a lista de reproducción"
-                                               style:UIAlertActionStyleDefault
-                                             handler:^(UIAlertAction *action) {
+    [actions addObject:[OTSheetAction actionWithTitle:@"Añadir a lista de reproducción"
+                                                 icon:OTIconPlaylist
+                                              handler:^{
         [weakSelf showPlaylistPickerForItem:item];
     }]];
 
     BOOL favorite = [[OTStore sharedStore] isFavorite:item];
-    [sheet addAction:[UIAlertAction actionWithTitle:(favorite ? @"Quitar de favoritos" : @"Añadir a favoritos")
-                                               style:UIAlertActionStyleDefault
-                                             handler:^(UIAlertAction *action) {
+    [actions addObject:[OTSheetAction actionWithTitle:(favorite ? @"Quitar de favoritos" : @"Añadir a favoritos")
+                                                 icon:(favorite ? OTIconHeartFill : OTIconHeart)
+                                              handler:^{
         BOOL added = [[OTStore sharedStore] toggleFavorite:item];
         [OTTheme showToast:(added ? @"Añadido a favoritos" : @"Quitado de favoritos") inView:weakSelf.view];
         [[NSNotificationCenter defaultCenter] postNotificationName:@"OTLibraryDidChangeNotification" object:nil];
@@ -460,83 +459,89 @@
     BOOL downloaded = [[OTStore sharedStore] isDownloaded:item];
     if (item.isPlayable) {
         if (downloaded) {
-            [sheet addAction:[UIAlertAction actionWithTitle:@"Eliminar descarga"
-                                                       style:UIAlertActionStyleDestructive
-                                                     handler:^(UIAlertAction *action) {
+            OTSheetAction *remove = [OTSheetAction actionWithTitle:@"Eliminar descarga"
+                                                              icon:OTIconTrash
+                                                           handler:^{
                 [[OTStore sharedStore] removeDownloadForItem:item];
                 [OTTheme showToast:@"Descarga eliminada" inView:weakSelf.view];
-            }]];
+                [[NSNotificationCenter defaultCenter] postNotificationName:@"OTLibraryDidChangeNotification" object:nil];
+            }];
+            remove.destructive = YES;
+            [actions addObject:remove];
         } else {
-            [sheet addAction:[UIAlertAction actionWithTitle:@"Descargar"
-                                                       style:UIAlertActionStyleDefault
-                                                     handler:^(UIAlertAction *action) {
+            [actions addObject:[OTSheetAction actionWithTitle:@"Descargar"
+                                                         icon:OTIconDownload
+                                                      handler:^{
                 [weakSelf downloadItem:item];
             }]];
         }
-        [sheet addAction:[UIAlertAction actionWithTitle:@"Compartir"
-                                                   style:UIAlertActionStyleDefault
-                                                 handler:^(UIAlertAction *action) {
+        [actions addObject:[OTSheetAction actionWithTitle:@"Compartir"
+                                                     icon:OTIconExternal
+                                                  handler:^{
             [weakSelf shareItem:item sourceView:sourceView];
         }]];
     }
 
-    [sheet addAction:[UIAlertAction actionWithTitle:@"Cancelar" style:UIAlertActionStyleCancel handler:nil]];
+    [actions addObject:[OTSheetAction actionWithTitle:@"Cancelar"
+                                                 icon:OTIconClose
+                                              handler:nil]];
 
-    if (sheet.popoverPresentationController) {
-        sheet.popoverPresentationController.sourceView = sourceView ?: self.view;
-        sheet.popoverPresentationController.sourceRect = sourceView ? sourceView.bounds : self.view.bounds;
-    }
-    [self presentViewController:sheet animated:YES completion:nil];
+    OTSheetViewController *sheet = [OTSheetViewController sheetWithTitle:item.title
+                                                                subtitle:[item displaySubtitle]
+                                                                 actions:actions];
+    [sheet presentFrom:self];
 }
 
 - (void)showPlaylistPickerForItem:(OTItem *)item
 {
-    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"Añadir a lista"
-                                                                  message:item.title
-                                                           preferredStyle:UIAlertControllerStyleActionSheet];
     __weak typeof(self) weakSelf = self;
+    NSMutableArray<OTSheetAction *> *actions = [NSMutableArray array];
     for (OTPlaylist *playlist in [[OTStore sharedStore] playlists]) {
-        [sheet addAction:[UIAlertAction actionWithTitle:playlist.name
-                                                   style:UIAlertActionStyleDefault
-                                                 handler:^(UIAlertAction *action) {
+        [actions addObject:[OTSheetAction actionWithTitle:playlist.name
+                                                    subtitle:[NSString stringWithFormat:@"%lu canciones",
+                                                              (unsigned long)playlist.items.count]
+                                                        icon:OTIconPlaylist
+                                                     handler:^{
             BOOL added = [[OTStore sharedStore] addItem:item toPlaylistWithId:playlist.playlistId];
             [OTTheme showToast:(added ? @"Añadido a la lista" : @"Ya estaba en la lista") inView:weakSelf.view];
             [[NSNotificationCenter defaultCenter] postNotificationName:@"OTLibraryDidChangeNotification" object:nil];
         }]];
     }
-    [sheet addAction:[UIAlertAction actionWithTitle:@"Nueva lista…"
-                                               style:UIAlertActionStyleDefault
-                                             handler:^(UIAlertAction *action) {
+    [actions addObject:[OTSheetAction actionWithTitle:@"Nueva lista…"
+                                                 icon:OTIconPlus
+                                              handler:^{
         [weakSelf promptNewPlaylistWithItem:item];
     }]];
-    [sheet addAction:[UIAlertAction actionWithTitle:@"Cancelar" style:UIAlertActionStyleCancel handler:nil]];
+    [actions addObject:[OTSheetAction actionWithTitle:@"Cancelar"
+                                                 icon:OTIconClose
+                                              handler:nil]];
 
-    if (sheet.popoverPresentationController) {
-        sheet.popoverPresentationController.sourceView = self.view;
-        sheet.popoverPresentationController.sourceRect = CGRectMake(self.view.bounds.size.width / 2.0,
-                                                                    self.view.bounds.size.height / 2.0, 1, 1);
-    }
-    [self presentViewController:sheet animated:YES completion:nil];
+    OTSheetViewController *sheet = [OTSheetViewController sheetWithTitle:@"Añadir a lista"
+                                                                subtitle:item.title
+                                                                 actions:actions];
+    [sheet presentFrom:self];
 }
 
 - (void)promptNewPlaylistWithItem:(OTItem *)item
 {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Nueva lista"
-                                                                    message:@"Ponle un nombre"
-                                                             preferredStyle:UIAlertControllerStyleAlert];
-    [alert addTextFieldWithConfigurationHandler:^(UITextField *textField) {
-        textField.placeholder = @"Mi lista";
-    }];
     __weak typeof(self) weakSelf = self;
-    [alert addAction:[UIAlertAction actionWithTitle:@"Crear" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        NSString *name = alert.textFields.firstObject.text;
+    OTDialogViewController *dialog =
+        [OTDialogViewController promptWithTitle:@"Nueva lista"
+                                        message:@"Ponle un nombre"
+                                    placeholder:@"Mi lista"
+                                          value:nil
+                                   confirmTitle:@"Crear"
+                                     completion:^(NSString *text) {
+        NSString *name = [text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (name.length == 0) {
+            name = @"Mi lista";
+        }
         OTPlaylist *playlist = [[OTStore sharedStore] createPlaylistNamed:name];
         [[OTStore sharedStore] addItem:item toPlaylistWithId:playlist.playlistId];
         [OTTheme showToast:@"Lista creada" inView:weakSelf.view];
         [[NSNotificationCenter defaultCenter] postNotificationName:@"OTLibraryDidChangeNotification" object:nil];
-    }]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cancelar" style:UIAlertActionStyleCancel handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
+    }];
+    [dialog presentFrom:self];
 }
 
 - (void)downloadItem:(OTItem *)item

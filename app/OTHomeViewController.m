@@ -8,11 +8,12 @@
 #import "OTInnertube.h"
 #import "OTRootViewController.h"
 #import "OTSettingsViewController.h"
+#import "OTComponents.h"
 
 @interface OTHomeViewController ()
 
+@property (nonatomic, strong) OTAppBarView *appBar;
 @property (nonatomic, strong) UIView *homeHeader;
-@property (nonatomic, strong) UILabel *greetingLabel;
 @property (nonatomic, strong) OTChipsView *chipsView;
 @property (nonatomic, strong) NSArray<NSDictionary *> *chips;
 @property (nonatomic, assign) NSInteger selectedChip;
@@ -36,19 +37,17 @@
 {
     [super viewDidLoad];
 
-    self.rightButton.hidden = NO;
-    [self.rightButton setImage:[OTTheme icon:OTIconSettings size:22] forState:UIControlStateNormal];
-    [self.rightButton removeTarget:nil action:NULL forControlEvents:UIControlEventTouchUpInside];
-    [self.rightButton addTarget:self action:@selector(openSettings) forControlEvents:UIControlEventTouchUpInside];
+    self.topTitleLabel.hidden = YES;
 
-    self.homeHeader = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 104.0)];
+    self.appBar = [[OTAppBarView alloc] initWithTitle:@"OpenTune" showsLogo:YES];
+    [self.appBar addButtonWithIcon:OTIconHistory target:self action:@selector(openHistory)];
+    [self.appBar addButtonWithIcon:OTIconStats target:self action:@selector(openStats)];
+    [self.appBar addButtonWithIcon:OTIconBell target:self action:@selector(openNotifications)];
+    [self.appBar addAvatarWithTarget:self action:@selector(openSettings)];
+    [self.topBar addSubview:self.appBar];
+
+    self.homeHeader = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 56.0)];
     self.homeHeader.backgroundColor = [OTTheme background];
-
-    self.greetingLabel = [[UILabel alloc] initWithFrame:CGRectZero];
-    self.greetingLabel.font = [OTTheme headlineMedium];
-    self.greetingLabel.textColor = [OTTheme text];
-    self.greetingLabel.text = [self greeting];
-    [self.homeHeader addSubview:self.greetingLabel];
 
     self.chipsView = [[OTChipsView alloc] initWithFrame:CGRectZero];
     __weak typeof(self) weakSelf = self;
@@ -66,27 +65,15 @@
 - (void)viewDidLayoutSubviews
 {
     [super viewDidLayoutSubviews];
+    self.appBar.frame = self.topBar.bounds;
     [self layoutHomeHeader];
 }
 
 - (void)layoutHomeHeader
 {
     CGFloat width = self.view.bounds.size.width;
-    self.homeHeader.frame = CGRectMake(0, 0, width, 104.0);
-    self.greetingLabel.frame = CGRectMake(16.0, 2.0, width - 32.0, 40.0);
-    self.chipsView.frame = CGRectMake(0, 50.0, width, 44.0);
-}
-
-- (NSString *)greeting
-{
-    NSInteger hour = [[[NSCalendar currentCalendar] components:NSCalendarUnitHour fromDate:[NSDate date]] hour];
-    if (hour < 12) {
-        return @"Buenos días";
-    }
-    if (hour < 20) {
-        return @"Buenas tardes";
-    }
-    return @"Buenas noches";
+    self.homeHeader.frame = CGRectMake(0, 0, width, 56.0);
+    self.chipsView.frame = CGRectMake(0, 6.0, width, 44.0);
 }
 
 #pragma mark - Carga
@@ -178,6 +165,32 @@
 }
 
 #pragma mark - Acciones
+
+- (void)openLibraryTab:(NSInteger)index
+{
+    UIViewController *parent = self.navigationController.parentViewController;
+    if ([parent isKindOfClass:[OTRootViewController class]]) {
+        [(OTRootViewController *)parent selectTab:3];
+    }
+    [[NSNotificationCenter defaultCenter] postNotificationName:OTLibrarySelectTabNotification
+                                                        object:nil
+                                                      userInfo:@{@"index": @(index)}];
+}
+
+- (void)openHistory
+{
+    [self openLibraryTab:3];
+}
+
+- (void)openStats
+{
+    [self openLibraryTab:4];
+}
+
+- (void)openNotifications
+{
+    [OTTheme showToast:@"No tienes notificaciones nuevas" inView:self.view];
+}
 
 - (void)openSettings
 {

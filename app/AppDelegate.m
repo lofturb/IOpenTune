@@ -72,7 +72,6 @@
         NSFontAttributeName: [OTTheme font:17.0 weight:UIFontWeightSemibold]
     }];
 
-    [[UISwitch appearance] setOnTintColor:[OTTheme primary]];
     [[UIProgressView appearance] setTrackTintColor:[OTTheme surfaceHigh]];
     [[UIProgressView appearance] setProgressTintColor:[OTTheme primary]];
 }

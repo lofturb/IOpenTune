@@ -35,6 +35,7 @@ static void *OTPlayerItemStatusContext = &OTPlayerItemStatusContext;
 @property (nonatomic, strong) NSTimer *sleepTimerInstance;
 @property (nonatomic, assign) NSTimeInterval sleepDeadline;
 @property (nonatomic, assign) BOOL observingPlayer;
+@property (nonatomic, copy) NSString *streamMimeType;
 
 - (void)startPlaybackWithURL:(NSURL *)url mimeType:(NSString *)mimeType userAgent:(NSString *)userAgent;
 
@@ -150,6 +151,36 @@ static void *OTPlayerItemStatusContext = &OTPlayerItemStatusContext;
     }
     OTItem *item = self.currentItem;
     return item.duration > 0 ? (double)item.duration : 0;
+}
+
+- (NSString *)currentMimeType
+{
+    return self.streamMimeType;
+}
+
+- (NSString *)currentFormatLabel
+{
+    NSString *mime = [self.streamMimeType lowercaseString];
+    if (mime.length == 0) {
+        return nil;
+    }
+    if ([mime rangeOfString:@"webm"].location != NSNotFound) {
+        return @"WEBM";
+    }
+    if ([mime rangeOfString:@"mp4"].location != NSNotFound ||
+        [mime rangeOfString:@"m4a"].location != NSNotFound ||
+        [mime rangeOfString:@"aac"].location != NSNotFound) {
+        return @"M4A";
+    }
+    if ([mime rangeOfString:@"mpeg"].location != NSNotFound ||
+        [mime rangeOfString:@"mp3"].location != NSNotFound) {
+        return @"MP3";
+    }
+    if ([mime rangeOfString:@"ogg"].location != NSNotFound ||
+        [mime rangeOfString:@"opus"].location != NSNotFound) {
+        return @"OGG";
+    }
+    return [[mime componentsSeparatedByString:@"/"].lastObject uppercaseString];
 }
 
 - (BOOL)sleepTimerActive
@@ -435,6 +466,7 @@ static void *OTPlayerItemStatusContext = &OTPlayerItemStatusContext;
 - (void)startPlaybackWithURL:(NSURL *)url mimeType:(NSString *)mimeType userAgent:(NSString *)userAgent
 {
     [self removeItemObservers];
+    self.streamMimeType = mimeType;
 
     AVPlayerItem *playerItem = nil;
     if (userAgent.length > 0) {

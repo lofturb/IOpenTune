@@ -6,6 +6,8 @@
 #import <UIKit/UIKit.h>
 
 extern NSString *const OTBottomInsetDidChangeNotification;
+// Pide a la biblioteca que muestre una pestana concreta (0=Favoritos … 4=Estadisticas).
+extern NSString *const OTLibrarySelectTabNotification;
 
 CGFloat OTBottomInset(void);
 

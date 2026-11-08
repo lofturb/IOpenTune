@@ -13,38 +13,111 @@
 #import "OTComponents.h"
 
 #import <QuartzCore/QuartzCore.h>
+#import <AVFoundation/AVFoundation.h>
+
+#pragma mark - Chip de salida de audio
+
+@interface OTOutputChip : UIControl
+
+@property (nonatomic, strong) UIImageView *iconView;
+@property (nonatomic, strong) UILabel *label;
+
+- (void)setTitle:(NSString *)title icon:(OTIcon)icon;
+
+@end
+
+@implementation OTOutputChip
+
+- (instancetype)initWithFrame:(CGRect)frame
+{
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.backgroundColor = [[OTTheme surfaceHigh] colorWithAlphaComponent:0.85];
+        self.layer.cornerRadius = 22.0;
+        self.clipsToBounds = YES;
+
+        _iconView = [[UIImageView alloc] initWithFrame:CGRectZero];
+        _iconView.contentMode = UIViewContentModeScaleAspectFit;
+        _iconView.tintColor = [OTTheme text];
+        _iconView.userInteractionEnabled = NO;
+        [self addSubview:_iconView];
+
+        _label = [[UILabel alloc] initWithFrame:CGRectZero];
+        _label.font = [OTTheme font:15.0 weight:UIFontWeightSemibold];
+        _label.textColor = [OTTheme text];
+        _label.userInteractionEnabled = NO;
+        [self addSubview:_label];
+    }
+    return self;
+}
+
+- (void)setTitle:(NSString *)title icon:(OTIcon)icon
+{
+    self.label.text = title;
+    self.iconView.image = [OTTheme icon:icon size:18];
+    [self setNeedsLayout];
+}
+
+- (void)layoutSubviews
+{
+    [super layoutSubviews];
+    CGFloat height = self.bounds.size.height;
+    CGSize textSize = [self.label sizeThatFits:CGSizeMake(220.0, height)];
+    CGFloat iconWidth = 18.0;
+    CGFloat spacing = 10.0;
+    CGFloat total = iconWidth + spacing + textSize.width;
+    CGFloat x = MAX(16.0, (self.bounds.size.width - total) / 2.0);
+    self.iconView.frame = CGRectMake(x, (height - iconWidth) / 2.0, iconWidth, iconWidth);
+    self.label.frame = CGRectMake(x + iconWidth + spacing,
+                                  (height - textSize.height) / 2.0,
+                                  textSize.width,
+                                  textSize.height);
+}
+
+- (CGSize)sizeThatFits:(CGSize)size
+{
+    CGSize textSize = [self.label sizeThatFits:CGSizeMake(220.0, 44.0)];
+    CGFloat width = textSize.width + 18.0 + 10.0 + 32.0;
+    return CGSizeMake(MIN(width, size.width), 44.0);
+}
+
+@end
+
+
+#pragma mark - Reproductor
 
 @interface OTPlayerViewController () <UITableViewDataSource, UITableViewDelegate>
 
 @property (nonatomic, strong) OTImageView *backgroundView;
+@property (nonatomic, strong) UIView *shadeView;
 @property (nonatomic, strong) UIView *gradientView;
 
 @property (nonatomic, strong) UIView *topBar;
 @property (nonatomic, strong) UIButton *closeButton;
-@property (nonatomic, strong) UIButton *moreButton;
 @property (nonatomic, strong) UILabel *topLabel;
 
-@property (nonatomic, strong) OTImageView *artworkView;
 @property (nonatomic, strong) UILabel *titleLabel;
 @property (nonatomic, strong) UILabel *artistLabel;
 @property (nonatomic, strong) UIButton *favoriteButton;
-@property (nonatomic, strong) UIButton *downloadButton;
+@property (nonatomic, strong) UIButton *moreButton;
 
-@property (nonatomic, strong) UISlider *slider;
+@property (nonatomic, strong) OTSlider *slider;
 @property (nonatomic, strong) UILabel *elapsedLabel;
 @property (nonatomic, strong) UILabel *remainingLabel;
+@property (nonatomic, strong) UIView *formatChip;
+@property (nonatomic, strong) UILabel *formatLabel;
 
-@property (nonatomic, strong) UIButton *shuffleButton;
 @property (nonatomic, strong) UIButton *prevButton;
 @property (nonatomic, strong) UIButton *playButton;
 @property (nonatomic, strong) UIButton *nextButton;
-@property (nonatomic, strong) UIButton *repeatButton;
 @property (nonatomic, strong) UIActivityIndicatorView *playSpinner;
 
-@property (nonatomic, strong) UIView *utilityRow;
-@property (nonatomic, strong) NSArray<UIView *> *utilityContainers;
-@property (nonatomic, strong) UILabel *sleepLabel;
+@property (nonatomic, strong) UILabel *metadataLabel;
+@property (nonatomic, strong) UIButton *queueButton;
+@property (nonatomic, strong) UIButton *lyricsButton;
+@property (nonatomic, strong) OTOutputChip *outputChip;
 
+@property (nonatomic, strong) UIView *panelDim;
 @property (nonatomic, strong) UIView *lyricsPanel;
 @property (nonatomic, strong) UITextView *lyricsTextView;
 @property (nonatomic, strong) UILabel *lyricsStatusLabel;
@@ -58,6 +131,7 @@
 
 @property (nonatomic, strong) UIView *queuePanel;
 @property (nonatomic, strong) UITableView *queueTable;
+@property (nonatomic, strong) UILabel *queueSubtitleLabel;
 
 @property (nonatomic, assign) BOOL draggingSlider;
 @property (nonatomic, assign) BOOL queuePanelVisible;
@@ -74,10 +148,11 @@
 
     [self buildBackground];
     [self buildTopBar];
-    [self buildContent];
-    [self buildUtilities];
-    [self buildLyricsPanel];
-    [self buildQueuePanel];
+    [self buildTrackInfo];
+    [self buildProgress];
+    [self buildTransport];
+    [self buildBottomRow];
+    [self buildPanels];
 
     [self registerNotifications];
     [self refreshWithTrack];
@@ -101,6 +176,7 @@
     [center addObserver:self selector:@selector(timeChanged) name:OTPlayerTimeDidChangeNotification object:nil];
     [center addObserver:self selector:@selector(queueChanged) name:OTPlayerQueueDidChangeNotification object:nil];
     [center addObserver:self selector:@selector(playerError:) name:OTPlayerErrorNotification object:nil];
+    [center addObserver:self selector:@selector(routeChanged) name:AVAudioSessionRouteChangeNotification object:nil];
 }
 
 #pragma mark - Construccion
@@ -110,17 +186,23 @@
     self.backgroundView = [[OTImageView alloc] initWithFrame:self.view.bounds];
     self.backgroundView.contentMode = UIViewContentModeScaleAspectFill;
     self.backgroundView.clipsToBounds = YES;
-    self.backgroundView.alpha = 0.22;
+    self.backgroundView.alpha = 0.62;
     self.backgroundView.userInteractionEnabled = NO;
     [self.view addSubview:self.backgroundView];
+
+    self.shadeView = [[UIView alloc] initWithFrame:self.view.bounds];
+    self.shadeView.backgroundColor = [[OTTheme background] colorWithAlphaComponent:0.28];
+    self.shadeView.userInteractionEnabled = NO;
+    [self.view addSubview:self.shadeView];
 
     self.gradientView = [[UIView alloc] initWithFrame:self.view.bounds];
     self.gradientView.userInteractionEnabled = NO;
     CAGradientLayer *gradient = [CAGradientLayer layer];
-    gradient.colors = @[(id)[[OTTheme background] colorWithAlphaComponent:0.15].CGColor,
-                        (id)[[OTTheme background] colorWithAlphaComponent:0.85].CGColor,
-                        (id)[[OTTheme background] CGColor]];
-    gradient.locations = @[@0.0, @0.55, @1.0];
+    gradient.colors = @[(id)[[OTTheme background] colorWithAlphaComponent:0.0].CGColor,
+                        (id)[[OTTheme background] colorWithAlphaComponent:0.22].CGColor,
+                        (id)[[OTTheme background] colorWithAlphaComponent:0.88].CGColor,
+                        (id)[[OTTheme background] colorWithAlphaComponent:1.0].CGColor];
+    gradient.locations = @[@0.0, @0.34, @0.72, @1.0];
     [self.gradientView.layer addSublayer:gradient];
     [self.view addSubview:self.gradientView];
 }
@@ -131,148 +213,164 @@
     self.topBar.backgroundColor = [UIColor clearColor];
     [self.view addSubview:self.topBar];
 
-    self.closeButton = [OTTheme iconButton:OTIconChevronDown size:24 color:[OTTheme text] target:self action:@selector(closePlayer)];
+    self.closeButton = [OTTheme iconButton:OTIconChevronDown size:26 color:[OTTheme text] target:self action:@selector(closePlayer)];
     [self.topBar addSubview:self.closeButton];
 
     self.topLabel = [[UILabel alloc] initWithFrame:CGRectZero];
-    self.topLabel.font = [OTTheme labelLarge];
+    self.topLabel.font = [OTTheme labelMedium];
     self.topLabel.textColor = [OTTheme secondaryText];
     self.topLabel.textAlignment = NSTextAlignmentCenter;
-    self.topLabel.text = @"Reproduciendo";
+    self.topLabel.text = @"Reproduciendo ahora";
     [self.topBar addSubview:self.topLabel];
-
-    self.moreButton = [OTTheme iconButton:OTIconMoreVert size:24 color:[OTTheme text] target:self action:@selector(showMore)];
-    [self.topBar addSubview:self.moreButton];
 }
 
-- (void)buildContent
+- (void)buildTrackInfo
 {
-    self.artworkView = [[OTImageView alloc] initWithFrame:CGRectZero];
-    self.artworkView.layer.cornerRadius = 16.0;
-    self.artworkView.clipsToBounds = YES;
-    self.artworkView.contentMode = UIViewContentModeScaleAspectFill;
-    [self.view addSubview:self.artworkView];
-
     self.titleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
-    self.titleLabel.font = [OTTheme titleLarge];
+    self.titleLabel.font = [OTTheme font:30.0 weight:UIFontWeightBold];
     self.titleLabel.textColor = [OTTheme text];
     self.titleLabel.numberOfLines = 2;
     [self.view addSubview:self.titleLabel];
 
     self.artistLabel = [[UILabel alloc] initWithFrame:CGRectZero];
-    self.artistLabel.font = [OTTheme bodyLarge];
+    self.artistLabel.font = [OTTheme font:17.0 weight:UIFontWeightMedium];
     self.artistLabel.textColor = [OTTheme secondaryText];
     self.artistLabel.numberOfLines = 1;
     [self.view addSubview:self.artistLabel];
 
-    self.favoriteButton = [OTTheme iconButton:OTIconHeart size:24 color:[OTTheme text] target:self action:@selector(toggleFavorite)];
+    self.favoriteButton = [OTTheme iconButton:OTIconHeart size:26 color:[OTTheme text] target:self action:@selector(toggleFavorite)];
     [self.view addSubview:self.favoriteButton];
 
-    self.downloadButton = [OTTheme iconButton:OTIconDownload size:24 color:[OTTheme text] target:self action:@selector(toggleDownload)];
-    [self.view addSubview:self.downloadButton];
+    self.moreButton = [OTTheme iconButton:OTIconMoreHoriz size:26 color:[OTTheme text] target:self action:@selector(showMore)];
+    [self.view addSubview:self.moreButton];
+}
 
-    self.slider = [[UISlider alloc] initWithFrame:CGRectZero];
-    self.slider.minimumTrackTintColor = [OTTheme primary];
-    self.slider.maximumTrackTintColor = [OTTheme colorWithHex:0x4A464F];
-    [self.slider setThumbTintColor:[OTTheme primary]];
+- (void)buildProgress
+{
+    self.slider = [[OTSlider alloc] initWithFrame:CGRectZero];
     [self.slider addTarget:self action:@selector(sliderTouchDown) forControlEvents:UIControlEventTouchDown];
     [self.slider addTarget:self action:@selector(sliderChanged) forControlEvents:UIControlEventValueChanged];
     [self.slider addTarget:self action:@selector(sliderTouchUp) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside | UIControlEventTouchCancel];
     [self.view addSubview:self.slider];
 
     self.elapsedLabel = [[UILabel alloc] initWithFrame:CGRectZero];
-    self.elapsedLabel.font = [OTTheme labelSmall];
-    self.elapsedLabel.textColor = [OTTheme secondaryText];
+    self.elapsedLabel.font = [OTTheme labelMedium];
+    self.elapsedLabel.textColor = [OTTheme text];
     [self.view addSubview:self.elapsedLabel];
 
     self.remainingLabel = [[UILabel alloc] initWithFrame:CGRectZero];
-    self.remainingLabel.font = [OTTheme labelSmall];
-    self.remainingLabel.textColor = [OTTheme secondaryText];
+    self.remainingLabel.font = [OTTheme labelMedium];
+    self.remainingLabel.textColor = [OTTheme text];
     self.remainingLabel.textAlignment = NSTextAlignmentRight;
     [self.view addSubview:self.remainingLabel];
 
-    self.shuffleButton = [OTTheme iconButton:OTIconShuffle size:22 color:[OTTheme text] target:self action:@selector(toggleShuffle)];
-    [self.view addSubview:self.shuffleButton];
+    self.formatChip = OTFormatChipView(@"WEBM", OTIconEqualizer);
+    self.formatChip.hidden = YES;
+    [self.view addSubview:self.formatChip];
+    self.formatLabel = (UILabel *)[self.formatChip viewWithTag:2];
+}
 
-    self.prevButton = [OTTheme iconButton:OTIconPrev size:30 color:[OTTheme text] target:self action:@selector(playPrevious)];
+- (void)buildTransport
+{
+    self.prevButton = [OTTheme iconButton:OTIconPrev size:34 color:[OTTheme text] target:self action:@selector(playPrevious)];
     [self.view addSubview:self.prevButton];
 
-    self.playButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    self.playButton.backgroundColor = [OTTheme primary];
-    self.playButton.layer.cornerRadius = 36.0;
-    self.playButton.tintColor = [OTTheme onPrimary];
-    [self.playButton setImage:[OTTheme icon:OTIconPlay size:32] forState:UIControlStateNormal];
-    [self.playButton addTarget:self action:@selector(togglePlayPause) forControlEvents:UIControlEventTouchUpInside];
+    self.playButton = [OTTheme iconButton:OTIconPlay size:44 color:[OTTheme text] target:self action:@selector(togglePlayPause)];
     [self.view addSubview:self.playButton];
 
     self.playSpinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhite];
-    self.playSpinner.color = [OTTheme onPrimary];
+    self.playSpinner.color = [OTTheme text];
     self.playSpinner.hidesWhenStopped = YES;
     [self.playButton addSubview:self.playSpinner];
 
-    self.nextButton = [OTTheme iconButton:OTIconNext size:30 color:[OTTheme text] target:self action:@selector(playNext)];
+    self.nextButton = [OTTheme iconButton:OTIconNext size:34 color:[OTTheme text] target:self action:@selector(playNext)];
     [self.view addSubview:self.nextButton];
-
-    self.repeatButton = [OTTheme iconButton:OTIconRepeat size:22 color:[OTTheme text] target:self action:@selector(cycleRepeat)];
-    [self.view addSubview:self.repeatButton];
 }
 
-- (void)buildUtilities
+- (UIButton *)circleButtonWithIcon:(OTIcon)icon action:(SEL)action
 {
-    self.utilityRow = [[UIView alloc] initWithFrame:CGRectZero];
-    [self.view addSubview:self.utilityRow];
-
-    UIView *lyrics = [self utilityWithIcon:OTIconLyrics title:@"Letras" action:@selector(showLyrics)];
-    UIView *queue = [self utilityWithIcon:OTIconQueue title:@"Cola" action:@selector(showQueue)];
-    UIView *sleep = [self utilityWithIcon:OTIconSleep title:@"Temporizador" action:@selector(showSleepTimer)];
-    UIView *speed = [self utilityWithIcon:OTIconSpeed title:@"Velocidad" action:@selector(showSpeed)];
-    self.utilityContainers = @[lyrics, queue, sleep, speed];
-    for (UIView *container in self.utilityContainers) {
-        [self.utilityRow addSubview:container];
-    }
-    self.sleepLabel = [sleep viewWithTag:2];
+    UIButton *button = [UIButton buttonWithType:UIButtonTypeCustom];
+    button.backgroundColor = [[OTTheme surfaceHigh] colorWithAlphaComponent:0.85];
+    button.layer.cornerRadius = 26.0;
+    button.tintColor = [OTTheme text];
+    [button setImage:[OTTheme icon:icon size:24] forState:UIControlStateNormal];
+    [button addTarget:self action:action forControlEvents:UIControlEventTouchUpInside];
+    return button;
 }
 
-- (UIView *)utilityWithIcon:(OTIcon)icon title:(NSString *)title action:(SEL)action
+- (void)buildBottomRow
 {
-    UIView *container = [[UIView alloc] initWithFrame:CGRectZero];
-    UIButton *button = [OTTheme iconButton:icon size:24 color:[OTTheme text] target:self action:action];
-    button.tag = 1;
-    [container addSubview:button];
+    self.metadataLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+    self.metadataLabel.font = [OTTheme labelSmall];
+    self.metadataLabel.textColor = [OTTheme secondaryText];
+    self.metadataLabel.textAlignment = NSTextAlignmentCenter;
+    [self.view addSubview:self.metadataLabel];
+
+    self.queueButton = [self circleButtonWithIcon:OTIconQueue action:@selector(showQueue)];
+    [self.view addSubview:self.queueButton];
+
+    self.lyricsButton = [self circleButtonWithIcon:OTIconLyrics action:@selector(showLyrics)];
+    [self.view addSubview:self.lyricsButton];
+
+    self.outputChip = [[OTOutputChip alloc] initWithFrame:CGRectZero];
+    [self.outputChip addTarget:self action:@selector(showOutputInfo) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:self.outputChip];
+    [self refreshOutputChip];
+}
+
+- (void)buildPanels
+{
+    self.panelDim = [[UIView alloc] initWithFrame:self.view.bounds];
+    self.panelDim.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.5];
+    self.panelDim.alpha = 0.0;
+    self.panelDim.hidden = YES;
+    [self.view addSubview:self.panelDim];
+
+    UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(dismissPanels)];
+    [self.panelDim addGestureRecognizer:tap];
+
+    [self buildLyricsPanel];
+    [self buildQueuePanel];
+}
+
+- (UIView *)panelWithTitle:(NSString *)title closeAction:(SEL)closeAction
+{
+    UIView *panel = [[UIView alloc] initWithFrame:CGRectZero];
+    panel.backgroundColor = [OTTheme surface];
+    panel.layer.cornerRadius = 28.0;
+    panel.clipsToBounds = YES;
+    panel.hidden = YES;
+
+    UIView *grabber = [[UIView alloc] initWithFrame:CGRectMake(0, 10.0, 36.0, 4.0)];
+    grabber.backgroundColor = [OTTheme outlineVariant];
+    grabber.layer.cornerRadius = 2.0;
+    grabber.tag = 1;
+    [panel addSubview:grabber];
 
     UILabel *label = [[UILabel alloc] initWithFrame:CGRectZero];
-    label.tag = 2;
-    label.font = [OTTheme labelSmall];
-    label.textColor = [OTTheme secondaryText];
-    label.textAlignment = NSTextAlignmentCenter;
+    label.font = [OTTheme font:24.0 weight:UIFontWeightBold];
+    label.textColor = [OTTheme text];
     label.text = title;
-    [container addSubview:label];
-    return container;
+    label.tag = 10;
+    [panel addSubview:label];
+
+    UIButton *close = [OTTheme iconButton:OTIconClose size:22 color:[OTTheme secondaryText] target:self action:closeAction];
+    close.tag = 11;
+    [panel addSubview:close];
+
+    [self.view addSubview:panel];
+    return panel;
 }
 
 - (void)buildLyricsPanel
 {
-    self.lyricsPanel = [[UIView alloc] initWithFrame:CGRectZero];
-    self.lyricsPanel.backgroundColor = [OTTheme background];
-    self.lyricsPanel.hidden = YES;
-    [self.view addSubview:self.lyricsPanel];
-
-    UILabel *title = [[UILabel alloc] initWithFrame:CGRectZero];
-    title.font = [OTTheme titleLarge];
-    title.textColor = [OTTheme text];
-    title.text = @"Letras";
-    title.tag = 10;
-    [self.lyricsPanel addSubview:title];
-
-    UIButton *close = [OTTheme iconButton:OTIconClose size:22 color:[OTTheme text] target:self action:@selector(hideLyrics)];
-    close.tag = 11;
-    [self.lyricsPanel addSubview:close];
+    self.lyricsPanel = [self panelWithTitle:@"Letras" closeAction:@selector(hideLyrics)];
 
     self.lyricsStatusLabel = [[UILabel alloc] initWithFrame:CGRectZero];
-    self.lyricsStatusLabel.font = [OTTheme labelMedium];
+    self.lyricsStatusLabel.font = [OTTheme bodyMedium];
     self.lyricsStatusLabel.textColor = [OTTheme outline];
-    self.lyricsStatusLabel.textAlignment = NSTextAlignmentCenter;
-    self.lyricsStatusLabel.numberOfLines = 2;
+    self.lyricsStatusLabel.textAlignment = NSTextAlignmentLeft;
+    self.lyricsStatusLabel.numberOfLines = 3;
     self.lyricsStatusLabel.tag = 12;
     [self.lyricsPanel addSubview:self.lyricsStatusLabel];
 
@@ -286,43 +384,36 @@
     self.lyricsTextView.backgroundColor = [UIColor clearColor];
     self.lyricsTextView.editable = NO;
     self.lyricsTextView.selectable = NO;
-    self.lyricsTextView.textContainerInset = UIEdgeInsetsMake(16, 20, 40, 20);
+    self.lyricsTextView.textContainerInset = UIEdgeInsetsMake(8, 24, 60, 24);
     self.lyricsTextView.tag = 14;
     [self.lyricsPanel addSubview:self.lyricsTextView];
 }
 
 - (void)buildQueuePanel
 {
-    self.queuePanel = [[UIView alloc] initWithFrame:CGRectZero];
-    self.queuePanel.backgroundColor = [OTTheme background];
-    self.queuePanel.hidden = YES;
-    [self.view addSubview:self.queuePanel];
+    self.queuePanel = [self panelWithTitle:@"Cola de reproducción" closeAction:@selector(hideQueue)];
 
-    UILabel *title = [[UILabel alloc] initWithFrame:CGRectZero];
-    title.font = [OTTheme titleLarge];
-    title.textColor = [OTTheme text];
-    title.text = @"Cola de reproducción";
-    title.tag = 10;
-    [self.queuePanel addSubview:title];
-
-    UIButton *close = [OTTheme iconButton:OTIconClose size:22 color:[OTTheme text] target:self action:@selector(hideQueue)];
-    close.tag = 11;
-    [self.queuePanel addSubview:close];
+    self.queueSubtitleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+    self.queueSubtitleLabel.font = [OTTheme bodyMedium];
+    self.queueSubtitleLabel.textColor = [OTTheme secondaryText];
+    self.queueSubtitleLabel.tag = 12;
+    [self.queuePanel addSubview:self.queueSubtitleLabel];
 
     UIButton *clear = [UIButton buttonWithType:UIButtonTypeCustom];
     clear.titleLabel.font = [OTTheme labelMedium];
     [clear setTitle:@"Vaciar" forState:UIControlStateNormal];
     [clear setTitleColor:[OTTheme primary] forState:UIControlStateNormal];
     [clear addTarget:self action:@selector(clearQueue) forControlEvents:UIControlEventTouchUpInside];
-    clear.tag = 12;
+    clear.tag = 13;
     [self.queuePanel addSubview:clear];
 
     self.queueTable = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
     self.queueTable.dataSource = self;
     self.queueTable.delegate = self;
-    self.queueTable.backgroundColor = [OTTheme background];
+    self.queueTable.backgroundColor = [OTTheme surface];
     self.queueTable.separatorStyle = UITableViewCellSeparatorStyleNone;
-    self.queueTable.rowHeight = 64.0;
+    self.queueTable.rowHeight = 72.0;
+    self.queueTable.contentInset = UIEdgeInsetsMake(0, 0, 24, 0);
     self.queueTable.tag = 20;
     [self.queueTable registerClass:[OTItemCell class] forCellReuseIdentifier:@"OTQueueCell"];
     [self.queuePanel addSubview:self.queueTable];
@@ -339,75 +430,85 @@
     CGFloat top = self.topLayoutGuide.length;
 
     self.backgroundView.frame = self.view.bounds;
+    self.shadeView.frame = self.view.bounds;
     self.gradientView.frame = self.view.bounds;
     CAGradientLayer *gradient = (CAGradientLayer *)self.gradientView.layer.sublayers.firstObject;
     gradient.frame = self.gradientView.bounds;
 
     self.topBar.frame = CGRectMake(0, top, width, 48.0);
     self.closeButton.frame = CGRectMake(8.0, 2.0, 44.0, 44.0);
-    self.moreButton.frame = CGRectMake(width - 52.0, 2.0, 44.0, 44.0);
     self.topLabel.frame = CGRectMake(64.0, 2.0, width - 128.0, 44.0);
 
-    CGFloat contentWidth = MIN(width - 48.0, 540.0);
+    CGFloat contentWidth = MIN(width - 96.0, 620.0);
     CGFloat contentX = (width - contentWidth) / 2.0;
 
-    CGFloat artworkSize = MIN(contentWidth, height * 0.36);
-    artworkSize = MIN(artworkSize, 380.0);
-    CGFloat artworkY = top + 56.0 + 8.0;
-    self.artworkView.frame = CGRectMake((width - artworkSize) / 2.0, artworkY, artworkSize, artworkSize);
+    CGFloat bottom = height - 26.0;
+    CGFloat outputHeight = 52.0;
+    CGFloat outputY = bottom - outputHeight;
+    CGSize outputSize = [self.outputChip sizeThatFits:CGSizeMake(contentWidth, 44.0)];
+    self.outputChip.frame = CGRectMake(contentX + contentWidth - outputSize.width,
+                                       outputY,
+                                       outputSize.width,
+                                       44.0);
+    self.queueButton.frame = CGRectMake(contentX, outputY - 2.0, 52.0, 52.0);
+    self.lyricsButton.frame = CGRectMake(contentX + 64.0, outputY - 2.0, 52.0, 52.0);
 
-    CGFloat y = CGRectGetMaxY(self.artworkView.frame) + 16.0;
-    self.titleLabel.frame = CGRectMake(contentX, y, contentWidth - 96.0, 32.0);
-    self.favoriteButton.frame = CGRectMake(contentX + contentWidth - 44.0, y - 4.0, 44.0, 44.0);
-    self.downloadButton.frame = CGRectMake(contentX + contentWidth - 88.0, y - 4.0, 44.0, 44.0);
+    CGFloat metadataY = outputY - 34.0;
+    self.metadataLabel.frame = CGRectMake(contentX, metadataY, contentWidth, 20.0);
 
-    y += 36.0;
-    self.artistLabel.frame = CGRectMake(contentX, y, contentWidth, 24.0);
+    CGFloat transportY = metadataY - 92.0;
+    self.playButton.frame = CGRectMake(contentX + contentWidth / 2.0 - 34.0, transportY, 68.0, 68.0);
+    self.playSpinner.center = CGPointMake(34.0, 34.0);
+    self.prevButton.frame = CGRectMake(contentX + contentWidth / 2.0 - 130.0, transportY + 8.0, 56.0, 52.0);
+    self.nextButton.frame = CGRectMake(contentX + contentWidth / 2.0 + 74.0, transportY + 8.0, 56.0, 52.0);
 
-    y += 34.0;
-    self.slider.frame = CGRectMake(contentX, y, contentWidth, 30.0);
-    self.elapsedLabel.frame = CGRectMake(contentX, y + 28.0, 60.0, 16.0);
-    self.remainingLabel.frame = CGRectMake(contentX + contentWidth - 60.0, y + 28.0, 60.0, 16.0);
+    CGFloat timesY = transportY - 38.0;
+    self.elapsedLabel.frame = CGRectMake(contentX, timesY, 70.0, 22.0);
+    self.remainingLabel.frame = CGRectMake(contentX + contentWidth - 70.0, timesY, 70.0, 22.0);
+    CGSize chipText = [self.formatLabel sizeThatFits:CGSizeMake(120.0, 24.0)];
+    CGFloat chipWidth = MAX(76.0, chipText.width + 42.0);
+    self.formatChip.frame = CGRectMake(contentX + (contentWidth - chipWidth) / 2.0,
+                                       timesY - 1.0,
+                                       chipWidth,
+                                       24.0);
+    self.formatLabel.frame = CGRectMake(26.0, 0, chipWidth - 32.0, 24.0);
 
-    y += 58.0;
-    self.shuffleButton.frame = CGRectMake(contentX + 6.0, y + 16.0, 44.0, 44.0);
-    self.prevButton.frame = CGRectMake(contentX + contentWidth / 2.0 - 100.0, y + 6.0, 56.0, 64.0);
-    self.playButton.frame = CGRectMake(contentX + contentWidth / 2.0 - 36.0, y, 72.0, 72.0);
-    self.nextButton.frame = CGRectMake(contentX + contentWidth / 2.0 + 44.0, y + 6.0, 56.0, 64.0);
-    self.repeatButton.frame = CGRectMake(contentX + contentWidth - 50.0, y + 16.0, 44.0, 44.0);
-    self.playSpinner.center = CGPointMake(36.0, 36.0);
+    CGFloat sliderY = timesY - 34.0;
+    self.slider.frame = CGRectMake(contentX, sliderY, contentWidth, 28.0);
 
-    y += 88.0;
-    self.utilityRow.frame = CGRectMake(contentX, y, contentWidth, 64.0);
-    CGFloat itemWidth = contentWidth / 4.0;
-    for (NSInteger i = 0; i < (NSInteger)self.utilityContainers.count; i++) {
-        UIView *container = self.utilityContainers[i];
-        container.frame = CGRectMake(i * itemWidth, 0, itemWidth, 64.0);
-        UIView *button = [container viewWithTag:1];
-        UILabel *label = [container viewWithTag:2];
-        button.frame = CGRectMake((itemWidth - 44.0) / 2.0, 0, 44.0, 44.0);
-        label.frame = CGRectMake(0, 44.0, itemWidth, 16.0);
-    }
+    CGFloat titleBlockY = sliderY - 108.0;
+    CGFloat actionsWidth = 96.0;
+    self.titleLabel.frame = CGRectMake(contentX, titleBlockY, contentWidth - actionsWidth, 42.0);
+    self.artistLabel.frame = CGRectMake(contentX, titleBlockY + 46.0, contentWidth - actionsWidth, 24.0);
+    self.favoriteButton.frame = CGRectMake(contentX + contentWidth - 92.0, titleBlockY - 8.0, 44.0, 44.0);
+    self.moreButton.frame = CGRectMake(contentX + contentWidth - 48.0, titleBlockY - 8.0, 44.0, 44.0);
 
-    CGFloat panelTop = top + 56.0;
-    self.lyricsPanel.frame = CGRectMake(0, panelTop, width, height - panelTop);
-    self.queuePanel.frame = self.lyricsPanel.frame;
+    CGFloat panelTop = MAX(top + 48.0, height * 0.24);
+    CGRect panelFrame = CGRectMake(0, panelTop, width, height - panelTop);
+    self.lyricsPanel.frame = panelFrame;
+    self.queuePanel.frame = panelFrame;
+    self.panelDim.frame = self.view.bounds;
 
+    UIView *grabber = [self.lyricsPanel viewWithTag:1];
+    grabber.frame = CGRectMake((width - 36.0) / 2.0, 10.0, 36.0, 4.0);
     UIView *lyricsTitle = [self.lyricsPanel viewWithTag:10];
-    lyricsTitle.frame = CGRectMake(20.0, 0, width - 120.0, 52.0);
+    lyricsTitle.frame = CGRectMake(24.0, 24.0, width - 100.0, 36.0);
     UIView *lyricsClose = [self.lyricsPanel viewWithTag:11];
-    lyricsClose.frame = CGRectMake(width - 52.0, 4.0, 44.0, 44.0);
-    self.lyricsStatusLabel.frame = CGRectMake(24.0, 60.0, width - 48.0, 44.0);
-    self.lyricsSpinner.center = CGPointMake(width / 2.0, 90.0);
-    self.lyricsTextView.frame = CGRectMake(0, 56.0, width, height - panelTop - 56.0);
+    lyricsClose.frame = CGRectMake(width - 56.0, 22.0, 44.0, 44.0);
+    self.lyricsStatusLabel.frame = CGRectMake(64.0, 82.0, width - 88.0, 60.0);
+    self.lyricsSpinner.center = CGPointMake(40.0, 100.0);
+    self.lyricsTextView.frame = CGRectMake(0, 68.0, width, panelFrame.size.height - 68.0);
 
+    UIView *queueGrabber = [self.queuePanel viewWithTag:1];
+    queueGrabber.frame = CGRectMake((width - 36.0) / 2.0, 10.0, 36.0, 4.0);
     UIView *queueTitle = [self.queuePanel viewWithTag:10];
-    queueTitle.frame = CGRectMake(20.0, 0, width - 180.0, 52.0);
+    queueTitle.frame = CGRectMake(24.0, 24.0, width - 180.0, 36.0);
     UIView *queueClose = [self.queuePanel viewWithTag:11];
-    queueClose.frame = CGRectMake(width - 52.0, 4.0, 44.0, 44.0);
-    UIView *queueClear = [self.queuePanel viewWithTag:12];
-    queueClear.frame = CGRectMake(width - 124.0, 4.0, 64.0, 44.0);
-    self.queueTable.frame = CGRectMake(0, 56.0, width, height - panelTop - 56.0);
+    queueClose.frame = CGRectMake(width - 56.0, 22.0, 44.0, 44.0);
+    self.queueSubtitleLabel.frame = CGRectMake(24.0, 60.0, width - 160.0, 20.0);
+    UIView *queueClear = [self.queuePanel viewWithTag:13];
+    queueClear.frame = CGRectMake(width - 116.0, 54.0, 92.0, 32.0);
+    self.queueTable.frame = CGRectMake(0, 90.0, width, panelFrame.size.height - 90.0);
 }
 
 #pragma mark - Estado
@@ -422,30 +523,25 @@
 
     self.titleLabel.text = item.title;
     self.artistLabel.text = item.artistsText.length > 0 ? item.artistsText : [item displaySubtitle];
-    [self.artworkView setImageURL:item.thumbnailURL
-                             size:700.0
-                      placeholder:[OTTheme musicPlaceholder:700]];
     [self.backgroundView setImageURL:item.thumbnailURL
-                                size:400.0
-                         placeholder:nil];
+                                size:900.0
+                         placeholder:[OTTheme musicPlaceholder:900]];
 
     BOOL favorite = [[OTStore sharedStore] isFavorite:item];
-    [self.favoriteButton setImage:[OTTheme icon:(favorite ? OTIconHeartFill : OTIconHeart) size:24]
+    [self.favoriteButton setImage:[OTTheme icon:(favorite ? OTIconHeartFill : OTIconHeart) size:26]
                          forState:UIControlStateNormal];
     self.favoriteButton.tintColor = favorite ? [OTTheme primary] : [OTTheme text];
 
-    BOOL downloaded = [[OTStore sharedStore] isDownloaded:item];
-    [self.downloadButton setImage:[OTTheme icon:(downloaded ? OTIconDone : OTIconDownload) size:24]
-                         forState:UIControlStateNormal];
-    self.downloadButton.tintColor = downloaded ? [OTTheme primary] : [OTTheme text];
+    [self updateFormatChip];
+    [self updateMetadata];
 
     self.slider.maximumValue = MAX(1.0, player.duration > 0 ? player.duration : (double)item.duration);
     self.slider.value = 0;
     self.elapsedLabel.text = @"0:00";
-    self.remainingLabel.text = [OTTheme formatTime:player.duration];
+    double initialDuration = player.duration > 0 ? player.duration : (double)item.duration;
+    self.remainingLabel.text = [NSString stringWithFormat:@"-%@", [OTTheme formatTime:initialDuration]];
     [self updatePlayState];
-    [self updateModes];
-    [self updateSleepLabel];
+    [self refreshOutputChip];
 
     self.currentLyricIndex = -1;
     self.lyricsItemId = nil;
@@ -454,14 +550,79 @@
     }
     if (self.queuePanelVisible) {
         [self.queueTable reloadData];
+        [self updateQueueSubtitle];
     }
+}
+
+- (void)updateFormatChip
+{
+    OTPlayer *player = [OTPlayer sharedPlayer];
+    NSString *label = player.currentFormatLabel;
+    self.formatChip.hidden = (label.length == 0);
+    if (label.length > 0) {
+        self.formatLabel.text = label;
+    }
+    [self.view setNeedsLayout];
+}
+
+- (NSString *)codecFromMimeType:(NSString *)mime
+{
+    NSRange range = [mime rangeOfString:@"codecs="];
+    if (range.location == NSNotFound) {
+        return nil;
+    }
+    NSString *codec = [mime substringFromIndex:range.location + range.length];
+    codec = [codec stringByReplacingOccurrencesOfString:@"\"" withString:@""];
+    NSRange semicolon = [codec rangeOfString:@";"];
+    if (semicolon.location != NSNotFound) {
+        codec = [codec substringToIndex:semicolon.location];
+    }
+    codec = [codec stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    NSString *lower = [codec lowercaseString];
+    if ([lower hasPrefix:@"mp4a"]) {
+        return @"AAC";
+    }
+    if ([lower hasPrefix:@"opus"]) {
+        return @"OPUS";
+    }
+    if ([lower hasPrefix:@"vorbis"]) {
+        return @"VORBIS";
+    }
+    if ([lower hasPrefix:@"ec-3"] || [lower hasPrefix:@"ac-3"]) {
+        return @"DOLBY";
+    }
+    return [codec uppercaseString];
+}
+
+- (void)updateMetadata
+{
+    OTPlayer *player = [OTPlayer sharedPlayer];
+    OTItem *item = player.currentItem;
+    NSString *format = player.currentFormatLabel;
+    NSString *mime = player.currentMimeType;
+    if (format.length == 0) {
+        self.metadataLabel.text = nil;
+        return;
+    }
+    NSMutableArray *parts = [NSMutableArray array];
+    [parts addObject:format];
+    NSString *codec = [self codecFromMimeType:mime];
+    if (codec.length > 0) {
+        [parts addObject:codec];
+    }
+    double duration = player.duration > 0 ? player.duration : (double)item.duration;
+    if (duration > 0) {
+        [parts addObject:[OTTheme formatTime:duration]];
+    }
+    self.metadataLabel.text = [parts componentsJoinedByString:@"  •  "];
 }
 
 - (void)updatePlayState
 {
     OTPlayer *player = [OTPlayer sharedPlayer];
-    [self.playButton setImage:[OTTheme icon:(player.isPlaying ? OTIconPause : OTIconPlay) size:32]
+    [self.playButton setImage:[OTTheme icon:(player.isPlaying ? OTIconPause : OTIconPlay) size:44]
                      forState:UIControlStateNormal];
+    self.playButton.imageView.hidden = player.isLoading;
     if (player.isLoading) {
         [self.playSpinner startAnimating];
     } else {
@@ -469,29 +630,21 @@
     }
 }
 
-- (void)updateModes
+- (void)refreshOutputChip
 {
-    OTPlayer *player = [OTPlayer sharedPlayer];
-    self.shuffleButton.tintColor = player.shuffle ? [OTTheme primary] : [OTTheme text];
-    self.shuffleButton.alpha = player.shuffle ? 1.0 : 0.65;
-
-    OTIcon repeatIcon = player.repeatMode == OTRepeatOne ? OTIconRepeatOne : OTIconRepeat;
-    [self.repeatButton setImage:[OTTheme icon:repeatIcon size:22] forState:UIControlStateNormal];
-    self.repeatButton.tintColor = player.repeatMode == OTRepeatOff ? [OTTheme text] : [OTTheme primary];
-    self.repeatButton.alpha = player.repeatMode == OTRepeatOff ? 0.65 : 1.0;
-}
-
-- (void)updateSleepLabel
-{
-    OTPlayer *player = [OTPlayer sharedPlayer];
-    if ([player sleepTimerActive]) {
-        NSInteger remaining = [player sleepTimerRemaining];
-        self.sleepLabel.text = [OTTheme formatTime:remaining];
-        self.sleepLabel.textColor = [OTTheme primary];
-    } else {
-        self.sleepLabel.text = @"Temporizador";
-        self.sleepLabel.textColor = [OTTheme secondaryText];
+    AVAudioSession *session = [AVAudioSession sharedInstance];
+    AVAudioSessionPortDescription *port = session.currentRoute.outputs.firstObject;
+    NSString *name = port.portName.length > 0 ? port.portName : @"Altavoz";
+    OTIcon icon = OTIconOutput;
+    if ([port.portType isEqualToString:AVAudioSessionPortBluetoothA2DP] ||
+        [port.portType isEqualToString:AVAudioSessionPortBluetoothHFP] ||
+        [port.portType isEqualToString:AVAudioSessionPortBluetoothLE]) {
+        icon = OTIconCast;
+    } else if ([port.portType isEqualToString:AVAudioSessionPortHeadphones] ||
+               [port.portType isEqualToString:AVAudioSessionPortHeadsetMic]) {
+        icon = OTIconVolume;
     }
+    [self.outputChip setTitle:name icon:icon];
 }
 
 #pragma mark - Notificaciones
@@ -504,6 +657,7 @@
 - (void)stateChanged
 {
     [self updatePlayState];
+    [self updateMetadata];
 }
 
 - (void)timeChanged
@@ -517,8 +671,7 @@
         self.slider.value = (float)MIN(current, MAX(1.0, duration));
     }
     self.elapsedLabel.text = [OTTheme formatTime:current];
-    self.remainingLabel.text = [OTTheme formatTime:MAX(0.0, duration - current)];
-    [self updateSleepLabel];
+    self.remainingLabel.text = [NSString stringWithFormat:@"-%@", [OTTheme formatTime:MAX(0.0, duration - current)]];
 
     if (self.lyricsPanelVisible && self.lyricsSynced) {
         [self highlightLyricsAtTime:current];
@@ -529,7 +682,13 @@
 {
     if (self.queuePanelVisible) {
         [self.queueTable reloadData];
+        [self updateQueueSubtitle];
     }
+}
+
+- (void)routeChanged
+{
+    [self refreshOutputChip];
 }
 
 - (void)playerError:(NSNotification *)notification
@@ -560,20 +719,6 @@
     [[OTPlayer sharedPlayer] previous];
 }
 
-- (void)toggleShuffle
-{
-    OTPlayer *player = [OTPlayer sharedPlayer];
-    player.shuffle = !player.shuffle;
-    [self updateModes];
-    [OTTheme showToast:(player.shuffle ? @"Aleatorio activado" : @"Aleatorio desactivado") inView:self.view];
-}
-
-- (void)cycleRepeat
-{
-    [[OTPlayer sharedPlayer] cycleRepeatMode];
-    [self updateModes];
-}
-
 - (void)toggleFavorite
 {
     OTItem *item = [OTPlayer sharedPlayer].currentItem;
@@ -581,7 +726,7 @@
         return;
     }
     BOOL added = [[OTStore sharedStore] toggleFavorite:item];
-    [self.favoriteButton setImage:[OTTheme icon:(added ? OTIconHeartFill : OTIconHeart) size:24]
+    [self.favoriteButton setImage:[OTTheme icon:(added ? OTIconHeartFill : OTIconHeart) size:26]
                          forState:UIControlStateNormal];
     self.favoriteButton.tintColor = added ? [OTTheme primary] : [OTTheme text];
     [OTTheme showToast:(added ? @"Añadido a favoritos" : @"Quitado de favoritos") inView:self.view];
@@ -597,8 +742,6 @@
     OTStore *store = [OTStore sharedStore];
     if ([store isDownloaded:item]) {
         [store removeDownloadForItem:item];
-        [self.downloadButton setImage:[OTTheme icon:OTIconDownload size:24] forState:UIControlStateNormal];
-        self.downloadButton.tintColor = [OTTheme text];
         [OTTheme showToast:@"Descarga eliminada" inView:self.view];
         [[NSNotificationCenter defaultCenter] postNotificationName:@"OTLibraryDidChangeNotification" object:nil];
         return;
@@ -611,14 +754,26 @@
             return;
         }
         if (success) {
-            [strongSelf.downloadButton setImage:[OTTheme icon:OTIconDone size:24] forState:UIControlStateNormal];
-            strongSelf.downloadButton.tintColor = [OTTheme primary];
             [OTTheme showToast:@"Descarga completada" inView:strongSelf.view];
             [[NSNotificationCenter defaultCenter] postNotificationName:@"OTLibraryDidChangeNotification" object:nil];
         } else {
             [OTTheme showToast:(error.localizedDescription ?: @"No se pudo descargar") inView:strongSelf.view];
         }
     }];
+}
+
+- (void)showOutputInfo
+{
+    AVAudioSession *session = [AVAudioSession sharedInstance];
+    AVAudioSessionPortDescription *port = session.currentRoute.outputs.firstObject;
+    NSString *name = port.portName.length > 0 ? port.portName : @"Altavoz del dispositivo";
+    OTDialogViewController *dialog =
+        [OTDialogViewController dialogWithTitle:@"Salida de audio"
+                                        message:[NSString stringWithFormat:@"Estás escuchando en %@.", name]
+                                   confirmTitle:@"Entendido"
+                                    cancelTitle:@"Cerrar"
+                                     completion:nil];
+    [dialog presentFrom:self];
 }
 
 #pragma mark - Slider
@@ -631,6 +786,9 @@
 - (void)sliderChanged
 {
     self.elapsedLabel.text = [OTTheme formatTime:self.slider.value];
+    double duration = [OTPlayer sharedPlayer].duration;
+    self.remainingLabel.text = [NSString stringWithFormat:@"-%@",
+                                [OTTheme formatTime:MAX(0.0, duration - self.slider.value)]];
 }
 
 - (void)sliderTouchUp
@@ -647,42 +805,86 @@
     if (!item) {
         return;
     }
-    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:item.title
-                                                                  message:[item displaySubtitle]
-                                                           preferredStyle:UIAlertControllerStyleActionSheet];
+    OTPlayer *player = [OTPlayer sharedPlayer];
     __weak typeof(self) weakSelf = self;
-    [sheet addAction:[UIAlertAction actionWithTitle:@"Añadir a la cola"
-                                               style:UIAlertActionStyleDefault
-                                             handler:^(UIAlertAction *action) {
-        [[OTPlayer sharedPlayer] addToQueue:item];
+    NSMutableArray<OTSheetAction *> *actions = [NSMutableArray array];
+
+    OTSheetAction *shuffle = [OTSheetAction actionWithTitle:@"Aleatorio"
+                                                       subtitle:(player.shuffle ? @"Activado" : @"Desactivado")
+                                                           icon:OTIconShuffle
+                                                        handler:^{
+        player.shuffle = !player.shuffle;
+        [OTTheme showToast:(player.shuffle ? @"Aleatorio activado" : @"Aleatorio desactivado") inView:weakSelf.view];
+    }];
+    shuffle.selected = player.shuffle;
+    [actions addObject:shuffle];
+
+    NSArray *repeatNames = @[@"Desactivado", @"Repetir todo", @"Repetir una"];
+    OTSheetAction *repeat = [OTSheetAction actionWithTitle:@"Repetición"
+                                                     subtitle:repeatNames[player.repeatMode]
+                                                         icon:OTIconRepeat
+                                                      handler:^{
+        [player cycleRepeatMode];
+        [OTTheme showToast:repeatNames[player.repeatMode] inView:weakSelf.view];
+    }];
+    repeat.selected = (player.repeatMode != OTRepeatOff);
+    [actions addObject:repeat];
+
+    OTSheetAction *speed = [OTSheetAction actionWithTitle:@"Velocidad"
+                                                    subtitle:[NSString stringWithFormat:@"%.2gx", player.playbackRate]
+                                                        icon:OTIconSpeed
+                                                     handler:^{
+        [weakSelf showSpeed];
+    }];
+    [actions addObject:speed];
+
+    OTSheetAction *sleep = [OTSheetAction actionWithTitle:@"Temporizador"
+                                                    subtitle:([player sleepTimerActive]
+                                                              ? [NSString stringWithFormat:@"%ld s restantes",
+                                                                 (long)[player sleepTimerRemaining]]
+                                                              : @"Apagado")
+                                                        icon:OTIconSleep
+                                                     handler:^{
+        [weakSelf showSleepTimer];
+    }];
+    [actions addObject:sleep];
+
+    [actions addObject:[OTSheetAction actionWithTitle:@"Añadir a la cola"
+                                                 icon:OTIconQueue
+                                              handler:^{
+        [player addToQueue:item];
         [OTTheme showToast:@"Añadido a la cola" inView:weakSelf.view];
     }]];
-    [sheet addAction:[UIAlertAction actionWithTitle:@"Ver letras"
-                                               style:UIAlertActionStyleDefault
-                                             handler:^(UIAlertAction *action) {
-        [weakSelf showLyrics];
-    }]];
-    [sheet addAction:[UIAlertAction actionWithTitle:@"Compartir"
-                                               style:UIAlertActionStyleDefault
-                                             handler:^(UIAlertAction *action) {
+
+    BOOL downloaded = [[OTStore sharedStore] isDownloaded:item];
+    OTSheetAction *download = [OTSheetAction actionWithTitle:(downloaded ? @"Eliminar descarga" : @"Descargar")
+                                                       icon:(downloaded ? OTIconTrash : OTIconDownload)
+                                                    handler:^{
+        [weakSelf toggleDownload];
+    }];
+    download.destructive = downloaded;
+    [actions addObject:download];
+
+    [actions addObject:[OTSheetAction actionWithTitle:@"Compartir"
+                                                 icon:OTIconExternal
+                                              handler:^{
         [weakSelf shareCurrent];
     }]];
-    [sheet addAction:[UIAlertAction actionWithTitle:@"Temporizador"
-                                               style:UIAlertActionStyleDefault
-                                             handler:^(UIAlertAction *action) {
-        [weakSelf showSleepTimer];
+
+    [actions addObject:[OTSheetAction actionWithTitle:@"Ver letras"
+                                                 icon:OTIconLyrics
+                                              handler:^{
+        [weakSelf showLyrics];
     }]];
-    [sheet addAction:[UIAlertAction actionWithTitle:@"Velocidad"
-                                               style:UIAlertActionStyleDefault
-                                             handler:^(UIAlertAction *action) {
-        [weakSelf showSpeed];
-    }]];
-    [sheet addAction:[UIAlertAction actionWithTitle:@"Cancelar" style:UIAlertActionStyleCancel handler:nil]];
-    if (sheet.popoverPresentationController) {
-        sheet.popoverPresentationController.sourceView = self.moreButton;
-        sheet.popoverPresentationController.sourceRect = self.moreButton.bounds;
-    }
-    [self presentViewController:sheet animated:YES completion:nil];
+
+    [actions addObject:[OTSheetAction actionWithTitle:@"Cancelar"
+                                                 icon:OTIconClose
+                                              handler:nil]];
+
+    OTSheetViewController *sheet = [OTSheetViewController sheetWithTitle:item.title
+                                                                subtitle:[item displaySubtitle]
+                                                                 actions:actions];
+    [sheet presentFrom:self];
 }
 
 - (void)shareCurrent
@@ -706,79 +908,131 @@
 
 - (void)showSleepTimer
 {
-    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"Temporizador"
-                                                                  message:@"Detener la reproducción tras…"
-                                                           preferredStyle:UIAlertControllerStyleActionSheet];
     NSArray *minutes = @[@5, @10, @15, @30, @60];
     __weak typeof(self) weakSelf = self;
+    NSMutableArray<OTSheetAction *> *actions = [NSMutableArray array];
     for (NSNumber *value in minutes) {
-        NSString *title = [NSString stringWithFormat:@"%@ minutos", value];
-        [sheet addAction:[UIAlertAction actionWithTitle:title
-                                                   style:UIAlertActionStyleDefault
-                                                 handler:^(UIAlertAction *action) {
+        OTSheetAction *action = [OTSheetAction actionWithTitle:[NSString stringWithFormat:@"%@ minutos", value]
+                                                          icon:OTIconSleep
+                                                       handler:^{
             [[OTPlayer sharedPlayer] setSleepTimer:[value doubleValue] * 60.0];
-            [weakSelf updateSleepLabel];
             [OTTheme showToast:[NSString stringWithFormat:@"Temporizador: %@ min", value] inView:weakSelf.view];
-        }]];
+        }];
+        [actions addObject:action];
     }
     if ([[OTPlayer sharedPlayer] sleepTimerActive]) {
-        [sheet addAction:[UIAlertAction actionWithTitle:@"Desactivar"
-                                                   style:UIAlertActionStyleDestructive
-                                                 handler:^(UIAlertAction *action) {
+        OTSheetAction *off = [OTSheetAction actionWithTitle:@"Desactivar"
+                                                       icon:OTIconClose
+                                                    handler:^{
             [[OTPlayer sharedPlayer] cancelSleepTimer];
-            [weakSelf updateSleepLabel];
-        }]];
+            [OTTheme showToast:@"Temporizador desactivado" inView:weakSelf.view];
+        }];
+        off.destructive = YES;
+        [actions addObject:off];
     }
-    [sheet addAction:[UIAlertAction actionWithTitle:@"Cancelar" style:UIAlertActionStyleCancel handler:nil]];
-    if (sheet.popoverPresentationController) {
-        sheet.popoverPresentationController.sourceView = self.view;
-        sheet.popoverPresentationController.sourceRect = CGRectMake(self.view.bounds.size.width / 2.0,
-                                                                    self.view.bounds.size.height / 2.0, 1, 1);
-    }
-    [self presentViewController:sheet animated:YES completion:nil];
+    [actions addObject:[OTSheetAction actionWithTitle:@"Cancelar" icon:OTIconClose handler:nil]];
+    OTSheetViewController *sheet = [OTSheetViewController sheetWithTitle:@"Temporizador"
+                                                                subtitle:@"Detener la reproducción tras…"
+                                                                 actions:actions];
+    [sheet presentFrom:self];
 }
 
 - (void)showSpeed
 {
-    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"Velocidad de reproducción"
-                                                                  message:nil
-                                                           preferredStyle:UIAlertControllerStyleActionSheet];
     NSArray *speeds = @[@0.5, @0.75, @1.0, @1.25, @1.5, @2.0];
     __weak typeof(self) weakSelf = self;
+    NSMutableArray<OTSheetAction *> *actions = [NSMutableArray array];
     for (NSNumber *value in speeds) {
         NSString *title = [NSString stringWithFormat:@"%.2gx", value.doubleValue];
-        [sheet addAction:[UIAlertAction actionWithTitle:title
-                                                   style:UIAlertActionStyleDefault
-                                                 handler:^(UIAlertAction *action) {
+        OTSheetAction *action = [OTSheetAction actionWithTitle:title
+                                                          icon:OTIconSpeed
+                                                       handler:^{
             [OTPlayer sharedPlayer].playbackRate = value.floatValue;
             [OTTheme showToast:[NSString stringWithFormat:@"Velocidad %@", title] inView:weakSelf.view];
-        }]];
+        }];
+        action.selected = (fabs([OTPlayer sharedPlayer].playbackRate - value.floatValue) < 0.01);
+        [actions addObject:action];
     }
-    [sheet addAction:[UIAlertAction actionWithTitle:@"Cancelar" style:UIAlertActionStyleCancel handler:nil]];
-    if (sheet.popoverPresentationController) {
-        sheet.popoverPresentationController.sourceView = self.view;
-        sheet.popoverPresentationController.sourceRect = CGRectMake(self.view.bounds.size.width / 2.0,
-                                                                    self.view.bounds.size.height / 2.0, 1, 1);
+    [actions addObject:[OTSheetAction actionWithTitle:@"Cancelar" icon:OTIconClose handler:nil]];
+    OTSheetViewController *sheet = [OTSheetViewController sheetWithTitle:@"Velocidad de reproducción"
+                                                                subtitle:nil
+                                                                 actions:actions];
+    [sheet presentFrom:self];
+}
+
+#pragma mark - Paneles
+
+- (CGRect)panelTargetFrame
+{
+    CGFloat height = self.view.bounds.size.height;
+    CGFloat panelTop = MAX(self.topLayoutGuide.length + 48.0, height * 0.24);
+    return CGRectMake(0, panelTop, self.view.bounds.size.width, height - panelTop);
+}
+
+- (void)presentPanel:(UIView *)panel
+{
+    self.panelDim.hidden = NO;
+    [self.view bringSubviewToFront:self.panelDim];
+    [self.view bringSubviewToFront:panel];
+
+    CGRect target = [self panelTargetFrame];
+    CGRect start = target;
+    start.origin.y = self.view.bounds.size.height;
+    panel.frame = start;
+    panel.hidden = NO;
+    [UIView animateWithDuration:0.3
+                          delay:0
+                        options:UIViewAnimationOptionCurveEaseOut
+                     animations:^{
+        panel.frame = target;
+        self.panelDim.alpha = 1.0;
+    } completion:nil];
+}
+
+- (void)dismissPanel:(UIView *)panel
+{
+    CGRect end = panel.frame;
+    end.origin.y = self.view.bounds.size.height;
+    [UIView animateWithDuration:0.24
+                          delay:0
+                        options:UIViewAnimationOptionCurveEaseIn
+                     animations:^{
+        panel.frame = end;
+        self.panelDim.alpha = 0.0;
+    } completion:^(BOOL finished) {
+        panel.hidden = YES;
+        self.panelDim.hidden = YES;
+    }];
+}
+
+- (void)dismissPanels
+{
+    if (self.lyricsPanelVisible) {
+        [self hideLyrics];
     }
-    [self presentViewController:sheet animated:YES completion:nil];
+    if (self.queuePanelVisible) {
+        [self hideQueue];
+    }
 }
 
 #pragma mark - Letras
 
 - (void)showLyrics
 {
-    self.lyricsPanelVisible = YES;
     self.queuePanelVisible = NO;
     self.queuePanel.hidden = YES;
-    self.lyricsPanel.hidden = NO;
-    [self.view bringSubviewToFront:self.lyricsPanel];
+    self.lyricsPanelVisible = YES;
+    [self presentPanel:self.lyricsPanel];
     [self loadLyrics];
 }
 
 - (void)hideLyrics
 {
+    if (!self.lyricsPanelVisible) {
+        return;
+    }
     self.lyricsPanelVisible = NO;
-    self.lyricsPanel.hidden = YES;
+    [self dismissPanel:self.lyricsPanel];
 }
 
 - (void)loadLyrics
@@ -825,7 +1079,7 @@
 {
     if (!self.lyricsSynced) {
         self.lyricsTextView.text = self.lyricsPlain ?: @"";
-        self.lyricsTextView.font = [OTTheme bodyLarge];
+        self.lyricsTextView.font = [OTTheme font:18.0 weight:UIFontWeightMedium];
         self.lyricsTextView.textColor = [OTTheme text];
         return;
     }
@@ -845,9 +1099,9 @@
     }
 
     NSMutableParagraphStyle *paragraph = [[NSMutableParagraphStyle alloc] init];
-    paragraph.lineSpacing = 10.0;
-    paragraph.alignment = NSTextAlignmentCenter;
-    [attributed addAttributes:@{NSFontAttributeName: [OTTheme font:20.0 weight:UIFontWeightMedium],
+    paragraph.lineSpacing = 16.0;
+    paragraph.alignment = NSTextAlignmentLeft;
+    [attributed addAttributes:@{NSFontAttributeName: [OTTheme font:21.0 weight:UIFontWeightSemibold],
                                 NSForegroundColorAttributeName: [OTTheme secondaryText],
                                 NSParagraphStyleAttributeName: paragraph}
                         range:NSMakeRange(0, attributed.length)];
@@ -881,12 +1135,12 @@
     }
     for (NSValue *value in self.lyricsRanges) {
         [attributed addAttribute:NSForegroundColorAttributeName value:[OTTheme secondaryText] range:value.rangeValue];
-        [attributed addAttribute:NSFontAttributeName value:[OTTheme font:20.0 weight:UIFontWeightMedium] range:value.rangeValue];
+        [attributed addAttribute:NSFontAttributeName value:[OTTheme font:21.0 weight:UIFontWeightSemibold] range:value.rangeValue];
     }
     if (index >= 0 && index < (NSInteger)self.lyricsRanges.count) {
         NSRange range = [self.lyricsRanges[index] rangeValue];
         [attributed addAttribute:NSForegroundColorAttributeName value:[OTTheme primary] range:range];
-        [attributed addAttribute:NSFontAttributeName value:[OTTheme font:22.0 weight:UIFontWeightBold] range:range];
+        [attributed addAttribute:NSFontAttributeName value:[OTTheme font:23.0 weight:UIFontWeightBold] range:range];
         self.lyricsTextView.attributedText = attributed;
         [self.lyricsTextView scrollRangeToVisible:range];
     }
@@ -896,24 +1150,35 @@
 
 - (void)showQueue
 {
-    self.queuePanelVisible = YES;
     self.lyricsPanelVisible = NO;
     self.lyricsPanel.hidden = YES;
-    self.queuePanel.hidden = NO;
-    [self.view bringSubviewToFront:self.queuePanel];
+    self.queuePanelVisible = YES;
+    [self updateQueueSubtitle];
     [self.queueTable reloadData];
+    [self presentPanel:self.queuePanel];
 }
 
 - (void)hideQueue
 {
+    if (!self.queuePanelVisible) {
+        return;
+    }
     self.queuePanelVisible = NO;
-    self.queuePanel.hidden = YES;
+    [self dismissPanel:self.queuePanel];
+}
+
+- (void)updateQueueSubtitle
+{
+    NSUInteger count = [OTPlayer sharedPlayer].queue.count;
+    self.queueSubtitleLabel.text = [NSString stringWithFormat:@"%lu %@", (unsigned long)count,
+                                    count == 1 ? @"canción" : @"canciones"];
 }
 
 - (void)clearQueue
 {
     [[OTPlayer sharedPlayer] clearQueue];
     [self.queueTable reloadData];
+    [self updateQueueSubtitle];
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
@@ -923,7 +1188,7 @@
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath
 {
-    return 64.0;
+    return 72.0;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
@@ -958,6 +1223,7 @@
     if (editingStyle == UITableViewCellEditingStyleDelete) {
         [[OTPlayer sharedPlayer] removeFromQueueAtIndex:indexPath.row];
         [tableView reloadData];
+        [self updateQueueSubtitle];
     }
 }
 

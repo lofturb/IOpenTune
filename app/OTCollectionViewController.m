@@ -10,6 +10,7 @@
 #import "OTPlayer.h"
 #import "OTDownloads.h"
 #import "OTRootViewController.h"
+#import "OTComponents.h"
 
 @interface OTCollectionViewController ()
 
@@ -257,35 +258,44 @@
 - (void)showHeaderMenu
 {
     OTItem *item = self.headerItem;
-    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:item.title
-                                                                  message:[item displaySubtitle]
-                                                           preferredStyle:UIAlertControllerStyleActionSheet];
     __weak typeof(self) weakSelf = self;
-    [sheet addAction:[UIAlertAction actionWithTitle:@"Añadir todo a la cola"
-                                               style:UIAlertActionStyleDefault
-                                             handler:^(UIAlertAction *action) {
+    NSMutableArray<OTSheetAction *> *actions = [NSMutableArray array];
+    [actions addObject:[OTSheetAction actionWithTitle:@"Reproducir todo"
+                                                 icon:OTIconPlay
+                                              handler:^{
+        [weakSelf playAll];
+    }]];
+    [actions addObject:[OTSheetAction actionWithTitle:@"Aleatorio"
+                                                 icon:OTIconShuffle
+                                              handler:^{
+        [weakSelf shuffleAll];
+    }]];
+    [actions addObject:[OTSheetAction actionWithTitle:@"Añadir todo a la cola"
+                                                 icon:OTIconQueue
+                                              handler:^{
         NSArray *items = [weakSelf allPlayableItems];
         for (OTItem *entry in items) {
             [[OTPlayer sharedPlayer] addToQueue:entry];
         }
         [OTTheme showToast:@"Añadido a la cola" inView:weakSelf.view];
     }]];
-    [sheet addAction:[UIAlertAction actionWithTitle:@"Descargar todo"
-                                               style:UIAlertActionStyleDefault
-                                             handler:^(UIAlertAction *action) {
+    [actions addObject:[OTSheetAction actionWithTitle:@"Descargar todo"
+                                                 icon:OTIconDownload
+                                              handler:^{
         [weakSelf downloadAll];
     }]];
-    [sheet addAction:[UIAlertAction actionWithTitle:@"Compartir"
-                                               style:UIAlertActionStyleDefault
-                                             handler:^(UIAlertAction *action) {
+    [actions addObject:[OTSheetAction actionWithTitle:@"Compartir"
+                                                 icon:OTIconExternal
+                                              handler:^{
         [weakSelf shareCollection];
     }]];
-    [sheet addAction:[UIAlertAction actionWithTitle:@"Cancelar" style:UIAlertActionStyleCancel handler:nil]];
-    if (sheet.popoverPresentationController) {
-        sheet.popoverPresentationController.sourceView = self.headerView.moreButton;
-        sheet.popoverPresentationController.sourceRect = self.headerView.moreButton.bounds;
-    }
-    [self presentViewController:sheet animated:YES completion:nil];
+    [actions addObject:[OTSheetAction actionWithTitle:@"Cancelar"
+                                                 icon:OTIconClose
+                                              handler:nil]];
+    OTSheetViewController *sheet = [OTSheetViewController sheetWithTitle:item.title
+                                                                subtitle:[item displaySubtitle]
+                                                                 actions:actions];
+    [sheet presentFrom:self];
 }
 
 - (void)shareCollection

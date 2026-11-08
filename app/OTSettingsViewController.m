@@ -8,12 +8,250 @@
 #import "OTStore.h"
 #import "OTInnertube.h"
 #import "OTImageCache.h"
+#import "OTRootViewController.h"
+#import "OTComponents.h"
 
-@interface OTSettingsViewController () <UITableViewDataSource, UITableViewDelegate>
+typedef NS_ENUM(NSInteger, OTSettingsAction) {
+    OTSettingsActionAppearance = 100,
+    OTSettingsActionPureBlack,
+    OTSettingsActionPlayerAudio,
+    OTSettingsActionDownloads,
+    OTSettingsActionClearHistory,
+    OTSettingsActionClearSearches,
+    OTSettingsActionClearCache,
+    OTSettingsActionAccount,
+    OTSettingsActionVersion,
+    OTSettingsActionLicense,
+    OTSettingsActionAbout,
+    OTSettingsActionPrivacy,
+    OTSettingsActionDiscord,
+    OTSettingsActionIntegrations,
+    OTSettingsActionTogether
+};
+
+#pragma mark - Fila de ajuste
+
+@interface OTSettingsRow : UIControl
+
+@property (nonatomic, strong) UIView *iconCircle;
+@property (nonatomic, strong) UIImageView *iconView;
+@property (nonatomic, strong) UILabel *titleLabel;
+@property (nonatomic, strong) UILabel *subtitleLabel;
+@property (nonatomic, strong) UIImageView *chevronView;
+@property (nonatomic, strong) UILabel *valueLabel;
+@property (nonatomic, strong) OTSwitch *toggle;
+
+- (instancetype)initWithTitle:(NSString *)title
+                     subtitle:(NSString *)subtitle
+                         icon:(OTIcon)icon
+                         tint:(UIColor *)tint;
+
+@end
+
+@implementation OTSettingsRow
+
+- (instancetype)initWithTitle:(NSString *)title
+                     subtitle:(NSString *)subtitle
+                         icon:(OTIcon)icon
+                         tint:(UIColor *)tint
+{
+    self = [super initWithFrame:CGRectZero];
+    if (self) {
+        self.backgroundColor = [OTTheme surfaceContainer];
+        self.layer.cornerRadius = 20.0;
+        self.layer.borderWidth = 1.0;
+        self.layer.borderColor = [OTTheme cardBorder].CGColor;
+        self.clipsToBounds = YES;
+
+        _iconCircle = [[UIView alloc] initWithFrame:CGRectZero];
+        _iconCircle.backgroundColor = [tint colorWithAlphaComponent:0.16];
+        _iconCircle.layer.cornerRadius = 22.0;
+        _iconCircle.userInteractionEnabled = NO;
+        [self addSubview:_iconCircle];
+
+        _iconView = [[UIImageView alloc] initWithFrame:CGRectZero];
+        _iconView.image = [OTTheme icon:icon size:22];
+        _iconView.tintColor = tint;
+        _iconView.contentMode = UIViewContentModeScaleAspectFit;
+        _iconView.userInteractionEnabled = NO;
+        [self addSubview:_iconView];
+
+        _titleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+        _titleLabel.font = [OTTheme font:17.0 weight:UIFontWeightSemibold];
+        _titleLabel.textColor = [OTTheme text];
+        _titleLabel.text = title;
+        _titleLabel.userInteractionEnabled = NO;
+        [self addSubview:_titleLabel];
+
+        _subtitleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+        _subtitleLabel.font = [OTTheme bodySmall];
+        _subtitleLabel.textColor = [OTTheme secondaryText];
+        _subtitleLabel.text = subtitle;
+        _subtitleLabel.userInteractionEnabled = NO;
+        [self addSubview:_subtitleLabel];
+
+        _chevronView = [[UIImageView alloc] initWithFrame:CGRectZero];
+        _chevronView.image = [OTTheme icon:OTIconChevronRight size:20];
+        _chevronView.tintColor = [OTTheme outline];
+        _chevronView.contentMode = UIViewContentModeScaleAspectFit;
+        _chevronView.userInteractionEnabled = NO;
+        [self addSubview:_chevronView];
+
+        _valueLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+        _valueLabel.font = [OTTheme bodyMedium];
+        _valueLabel.textColor = [OTTheme secondaryText];
+        _valueLabel.textAlignment = NSTextAlignmentRight;
+        _valueLabel.hidden = YES;
+        _valueLabel.userInteractionEnabled = NO;
+        [self addSubview:_valueLabel];
+
+        _toggle = [[OTSwitch alloc] initWithFrame:CGRectZero];
+        _toggle.hidden = YES;
+        [self addSubview:_toggle];
+
+        [self addTarget:self action:@selector(pressIn) forControlEvents:UIControlEventTouchDown];
+        [self addTarget:self action:@selector(pressOut)
+               forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside | UIControlEventTouchCancel];
+    }
+    return self;
+}
+
+- (void)pressIn
+{
+    self.backgroundColor = [OTTheme surfaceHigh];
+}
+
+- (void)pressOut
+{
+    self.backgroundColor = [OTTheme surfaceContainer];
+}
+
+- (void)layoutSubviews
+{
+    [super layoutSubviews];
+    CGFloat width = self.bounds.size.width;
+    CGFloat height = self.bounds.size.height;
+    self.iconCircle.frame = CGRectMake(16.0, (height - 44.0) / 2.0, 44.0, 44.0);
+    self.iconView.frame = CGRectMake(27.0, (height - 22.0) / 2.0, 22.0, 22.0);
+
+    CGFloat right = width - 20.0;
+    if (!self.toggle.hidden) {
+        self.toggle.frame = CGRectMake(width - 68.0, (height - 28.0) / 2.0, 48.0, 28.0);
+        right = CGRectGetMinX(self.toggle.frame) - 12.0;
+    } else if (!self.valueLabel.hidden) {
+        CGSize size = [self.valueLabel sizeThatFits:CGSizeMake(160.0, 24.0)];
+        self.valueLabel.frame = CGRectMake(right - size.width, 0, size.width, height);
+        right = CGRectGetMinX(self.valueLabel.frame) - 10.0;
+    }
+    self.chevronView.frame = CGRectMake(right - 20.0, (height - 20.0) / 2.0, 20.0, 20.0);
+
+    CGFloat textX = 76.0;
+    CGFloat textWidth = MAX(40.0, right - textX - 28.0);
+    if (self.subtitleLabel.text.length > 0) {
+        self.titleLabel.frame = CGRectMake(textX, 13.0, textWidth, 24.0);
+        self.subtitleLabel.frame = CGRectMake(textX, 38.0, textWidth, 18.0);
+    } else {
+        self.titleLabel.frame = CGRectMake(textX, 0, textWidth, height);
+        self.subtitleLabel.frame = CGRectZero;
+    }
+}
+
+@end
+
+
+#pragma mark - Tarjeta de la rejilla
+
+@interface OTSettingsCard : UIControl
+
+@property (nonatomic, strong) UIView *iconCircle;
+@property (nonatomic, strong) UIImageView *iconView;
+@property (nonatomic, strong) UILabel *titleLabel;
+
+- (instancetype)initWithTitle:(NSString *)title icon:(OTIcon)icon tint:(UIColor *)tint;
+
+@end
+
+@implementation OTSettingsCard
+
+- (instancetype)initWithTitle:(NSString *)title icon:(OTIcon)icon tint:(UIColor *)tint
+{
+    self = [super initWithFrame:CGRectZero];
+    if (self) {
+        [OTTheme styleCard:self radius:22.0];
+
+        _iconCircle = [[UIView alloc] initWithFrame:CGRectZero];
+        _iconCircle.backgroundColor = [tint colorWithAlphaComponent:0.16];
+        _iconCircle.layer.cornerRadius = 24.0;
+        _iconCircle.userInteractionEnabled = NO;
+        [self addSubview:_iconCircle];
+
+        _iconView = [[UIImageView alloc] initWithFrame:CGRectZero];
+        _iconView.image = [OTTheme icon:icon size:26];
+        _iconView.tintColor = tint;
+        _iconView.contentMode = UIViewContentModeScaleAspectFit;
+        _iconView.userInteractionEnabled = NO;
+        [self addSubview:_iconView];
+
+        _titleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+        _titleLabel.font = [OTTheme font:18.0 weight:UIFontWeightSemibold];
+        _titleLabel.textColor = [OTTheme text];
+        _titleLabel.text = title;
+        _titleLabel.numberOfLines = 1;
+        _titleLabel.userInteractionEnabled = NO;
+        [self addSubview:_titleLabel];
+
+        [self addTarget:self action:@selector(pressIn) forControlEvents:UIControlEventTouchDown];
+        [self addTarget:self action:@selector(pressOut)
+               forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside | UIControlEventTouchCancel];
+    }
+    return self;
+}
+
+- (void)pressIn
+{
+    self.backgroundColor = [OTTheme surfaceHigh];
+}
+
+- (void)pressOut
+{
+    self.backgroundColor = [OTTheme surfaceContainer];
+}
+
+- (void)layoutSubviews
+{
+    [super layoutSubviews];
+    CGFloat width = self.bounds.size.width;
+    CGFloat height = self.bounds.size.height;
+    self.iconCircle.frame = CGRectMake(16.0, 16.0, 48.0, 48.0);
+    self.iconView.frame = CGRectMake(27.0, 27.0, 26.0, 26.0);
+    self.titleLabel.frame = CGRectMake(16.0, height - 44.0, width - 32.0, 28.0);
+}
+
+@end
+
+
+#pragma mark - Ajustes
+
+@interface OTSettingsViewController () <UITextFieldDelegate>
 
 @property (nonatomic, strong) UIView *topBar;
 @property (nonatomic, strong) UILabel *titleLabel;
-@property (nonatomic, strong) UITableView *tableView;
+@property (nonatomic, strong) UIScrollView *scrollView;
+@property (nonatomic, strong) UIView *contentView;
+
+@property (nonatomic, strong) UIView *appCard;
+@property (nonatomic, strong) UILabel *versionChip;
+@property (nonatomic, strong) NSMutableArray<OTSettingsCard *> *gridCards;
+@property (nonatomic, strong) NSMutableArray<UIButton *> *chips;
+@property (nonatomic, strong) NSMutableArray<OTSettingsRow *> *rows;
+@property (nonatomic, strong) NSMutableArray<UILabel *> *sectionLabels;
+
+@property (nonatomic, strong) OTSettingsRow *qualityRow;
+@property (nonatomic, strong) OTSettingsRow *downloadsRow;
+@property (nonatomic, strong) OTSettingsRow *cacheRow;
+@property (nonatomic, strong) OTSettingsRow *accountRow;
+@property (nonatomic, strong) OTSettingsRow *versionRow;
+@property (nonatomic, strong) OTSwitch *pureBlackSwitch;
 
 @end
 
@@ -28,34 +266,47 @@
     self.topBar.backgroundColor = [OTTheme background];
     [self.view addSubview:self.topBar];
 
-    UIButton *back = [OTTheme iconButton:OTIconBack size:22 color:[OTTheme text] target:self action:@selector(goBack)];
-    back.frame = CGRectMake(4, 6, 44, 44);
+    UIButton *back = [OTTheme iconButton:OTIconBack size:24 color:[OTTheme text] target:self action:@selector(goBack)];
+    back.tag = 1;
     [self.topBar addSubview:back];
 
     self.titleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
-    self.titleLabel.font = [OTTheme headlineSmall];
+    self.titleLabel.font = [OTTheme font:40.0 weight:UIFontWeightBold];
     self.titleLabel.textColor = [OTTheme text];
     self.titleLabel.text = @"Ajustes";
     [self.topBar addSubview:self.titleLabel];
 
-    self.tableView = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStyleGrouped];
-    self.tableView.dataSource = self;
-    self.tableView.delegate = self;
-    self.tableView.backgroundColor = [OTTheme background];
-    self.tableView.separatorColor = [OTTheme separator];
-    self.tableView.rowHeight = 56.0;
-    self.tableView.tableFooterView = [[UIView alloc] initWithFrame:CGRectZero];
-    [self.view addSubview:self.tableView];
+    self.scrollView = [[UIScrollView alloc] initWithFrame:CGRectZero];
+    self.scrollView.showsVerticalScrollIndicator = NO;
+    self.scrollView.backgroundColor = [OTTheme background];
+    [self.view addSubview:self.scrollView];
+
+    self.contentView = [[UIView alloc] initWithFrame:CGRectZero];
+    self.contentView.backgroundColor = [OTTheme background];
+    [self.scrollView addSubview:self.contentView];
+
+    self.gridCards = [NSMutableArray array];
+    self.chips = [NSMutableArray array];
+    self.rows = [NSMutableArray array];
+    self.sectionLabels = [NSMutableArray array];
+
+    [self buildContent];
+
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(bottomInsetChanged)
+                                                 name:OTBottomInsetDidChangeNotification
+                                               object:nil];
 }
 
-- (void)viewDidLayoutSubviews
+- (void)dealloc
 {
-    [super viewDidLayoutSubviews];
-    CGFloat width = self.view.bounds.size.width;
-    CGFloat top = self.topLayoutGuide.length;
-    self.topBar.frame = CGRectMake(0, 0, width, top + 56.0);
-    self.titleLabel.frame = CGRectMake(56.0, top + 8.0, width - 72.0, 40.0);
-    self.tableView.frame = CGRectMake(0, top + 56.0, width, self.view.bounds.size.height - top - 56.0);
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)viewWillAppear:(BOOL)animated
+{
+    [super viewWillAppear:animated];
+    [self refreshValues];
 }
 
 - (UIStatusBarStyle)preferredStatusBarStyle
@@ -68,215 +319,375 @@
     [self.navigationController popViewControllerAnimated:YES];
 }
 
-#pragma mark - Tabla
-
-- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView
+- (void)bottomInsetChanged
 {
-    return 5;
+    [self.view setNeedsLayout];
 }
 
-- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
+#pragma mark - Construccion
+
+- (void)buildContent
 {
-    switch (section) {
-        case 0: return 1;   // cuenta
-        case 1: return 2;   // apariencia
-        case 2: return 2;   // reproduccion
-        case 3: return 3;   // datos
-        default: return 3;  // informacion
+    // Tarjeta de la aplicacion.
+    self.appCard = [[UIView alloc] initWithFrame:CGRectZero];
+    [OTTheme styleCard:self.appCard radius:24.0];
+    [self.contentView addSubview:self.appCard];
+
+    UIView *appIcon = [[UIView alloc] initWithFrame:CGRectZero];
+    appIcon.backgroundColor = [OTTheme primaryContainer];
+    appIcon.layer.cornerRadius = 18.0;
+    appIcon.tag = 1;
+    [self.appCard addSubview:appIcon];
+
+    UIImageView *note = [[UIImageView alloc] initWithFrame:CGRectZero];
+    note.image = [OTTheme icon:OTIconMusicNote size:30];
+    note.tintColor = [OTTheme onPrimaryContainer];
+    note.contentMode = UIViewContentModeScaleAspectFit;
+    note.tag = 2;
+    [self.appCard addSubview:note];
+
+    UILabel *appName = [[UILabel alloc] initWithFrame:CGRectZero];
+    appName.font = [OTTheme font:28.0 weight:UIFontWeightBold];
+    appName.textColor = [OTTheme text];
+    appName.text = @"OpenTune";
+    appName.tag = 3;
+    [self.appCard addSubview:appName];
+
+    self.versionChip = [[UILabel alloc] initWithFrame:CGRectZero];
+    self.versionChip.font = [OTTheme labelMedium];
+    self.versionChip.textColor = [OTTheme onSecondaryContainer];
+    self.versionChip.backgroundColor = [OTTheme secondaryContainer];
+    self.versionChip.textAlignment = NSTextAlignmentCenter;
+    self.versionChip.layer.cornerRadius = 9.0;
+    self.versionChip.clipsToBounds = YES;
+    self.versionChip.tag = 4;
+    NSString *version = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleShortVersionString"] ?: @"1.0";
+    self.versionChip.text = [NSString stringWithFormat:@"v%@", version];
+    [self.appCard addSubview:self.versionChip];
+
+    // Rejilla 2x2.
+    NSArray *gridTitles = @[@"Apariencia", @"Reproductor y audio", @"Almacenamiento", @"Privacidad"];
+    NSArray *gridIcons = @[@(OTIconPalette), @(OTIconPlay), @(OTIconStorage), @(OTIconShield)];
+    NSArray *gridTints = @[[OTTheme primary], [OTTheme secondary], [OTTheme tertiary], [OTTheme error]];
+    NSArray *gridActions = @[@(OTSettingsActionAppearance), @(OTSettingsActionPlayerAudio),
+                             @(OTSettingsActionDownloads), @(OTSettingsActionPrivacy)];
+    for (NSInteger i = 0; i < 4; i++) {
+        OTSettingsCard *card = [[OTSettingsCard alloc] initWithTitle:gridTitles[i]
+                                                               icon:[gridIcons[i] integerValue]
+                                                               tint:gridTints[i]];
+        card.tag = [gridActions[i] integerValue];
+        [card addTarget:self action:@selector(handleAction:) forControlEvents:UIControlEventTouchUpInside];
+        [self.contentView addSubview:card];
+        [self.gridCards addObject:card];
     }
-}
 
-- (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section
-{
-    switch (section) {
-        case 0: return @"Cuenta";
-        case 1: return @"Apariencia";
-        case 2: return @"Reproducción";
-        case 3: return @"Datos";
-        default: return @"Información";
+    // Chips.
+    NSArray *chipTitles = @[@"Discord", @"Integraciones", @"Juntos"];
+    NSArray *chipIcons = @[@(OTIconDiscord), @(OTIconPuzzle), @(OTIconFlame)];
+    NSArray *chipTints = @[[OTTheme colorWithHex:0x7289DA], [OTTheme secondary], [OTTheme error]];
+    NSArray *chipActions = @[@(OTSettingsActionDiscord), @(OTSettingsActionIntegrations),
+                             @(OTSettingsActionTogether)];
+    for (NSInteger i = 0; i < 3; i++) {
+        UIButton *chip = [UIButton buttonWithType:UIButtonTypeCustom];
+        chip.backgroundColor = [OTTheme surfaceContainer];
+        chip.layer.cornerRadius = 18.0;
+        chip.layer.borderWidth = 1.0;
+        chip.layer.borderColor = [OTTheme cardBorder].CGColor;
+        chip.titleLabel.font = [OTTheme labelLarge];
+        chip.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
+        chip.contentEdgeInsets = UIEdgeInsetsMake(0, 16, 0, 14);
+        chip.imageEdgeInsets = UIEdgeInsetsMake(0, -6, 0, 8);
+        chip.titleEdgeInsets = UIEdgeInsetsMake(0, 6, 0, -6);
+        [chip setTitle:chipTitles[i] forState:UIControlStateNormal];
+        [chip setTitleColor:[OTTheme text] forState:UIControlStateNormal];
+        [chip setImage:[OTTheme icon:[chipIcons[i] integerValue] size:20] forState:UIControlStateNormal];
+        chip.tintColor = chipTints[i];
+        chip.tag = [chipActions[i] integerValue];
+        [chip addTarget:self action:@selector(handleAction:) forControlEvents:UIControlEventTouchUpInside];
+        [self.contentView addSubview:chip];
+        [self.chips addObject:chip];
     }
+
+    // Secciones.
+    [self addSection:@"Interfaz de usuario"];
+    OTSettingsRow *appearance = [self addRowWithTitle:@"Apariencia"
+                                             subtitle:@"Tema oscuro"
+                                                 icon:OTIconPalette
+                                                 tint:[OTTheme primary]
+                                               action:OTSettingsActionAppearance];
+    (void)appearance;
+    OTSettingsRow *pureBlack = [self addRowWithTitle:@"Negro puro"
+                                            subtitle:@"Fondos completamente negros"
+                                                icon:OTIconLock
+                                                tint:[OTTheme secondary]
+                                              action:OTSettingsActionPureBlack];
+    self.pureBlackSwitch = pureBlack.toggle;
+    self.pureBlackSwitch.hidden = NO;
+    pureBlack.chevronView.hidden = YES;
+    [self.pureBlackSwitch addTarget:self action:@selector(pureBlackChanged:)
+                   forControlEvents:UIControlEventValueChanged];
+
+    [self addSection:@"Reproductor y contenido"];
+    self.qualityRow = [self addRowWithTitle:@"Reproductor y audio"
+                                   subtitle:@"Calidad de audio"
+                                       icon:OTIconPlay
+                                       tint:[OTTheme secondary]
+                                     action:OTSettingsActionPlayerAudio];
+    self.downloadsRow = [self addRowWithTitle:@"Descargas"
+                                     subtitle:@"Administrar descargas"
+                                         icon:OTIconDownload
+                                         tint:[OTTheme tertiary]
+                                       action:OTSettingsActionDownloads];
+
+    [self addSection:@"Datos y almacenamiento"];
+    [self addRowWithTitle:@"Borrar historial"
+                 subtitle:@"Vaciar las canciones escuchadas"
+                     icon:OTIconHistory
+                     tint:[OTTheme error]
+                   action:OTSettingsActionClearHistory];
+    [self addRowWithTitle:@"Borrar búsquedas"
+                 subtitle:@"Vaciar el historial de búsqueda"
+                     icon:OTIconSearch
+                     tint:[OTTheme error]
+                   action:OTSettingsActionClearSearches];
+    self.cacheRow = [self addRowWithTitle:@"Borrar caché de imágenes"
+                                 subtitle:@"Portadas descargadas"
+                                     icon:OTIconStorage
+                                     tint:[OTTheme error]
+                                   action:OTSettingsActionClearCache];
+
+    [self addSection:@"Cuenta"];
+    self.accountRow = [self addRowWithTitle:@"Cuenta"
+                                   subtitle:@"Sesión de YouTube Music"
+                                       icon:OTIconAccountCircle
+                                       tint:[OTTheme primary]
+                                     action:OTSettingsActionAccount];
+
+    [self addSection:@"Información"];
+    self.versionRow = [self addRowWithTitle:@"Versión"
+                                   subtitle:nil
+                                       icon:OTIconPuzzle
+                                       tint:[OTTheme secondary]
+                                     action:OTSettingsActionVersion];
+    self.versionRow.valueLabel.hidden = NO;
+    self.versionRow.chevronView.hidden = YES;
+    NSString *version = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleShortVersionString"] ?: @"1.0";
+    self.versionRow.valueLabel.text = version;
+    [self addRowWithTitle:@"Licencia"
+                 subtitle:@"GPL-3.0"
+                     icon:OTIconShield
+                     tint:[OTTheme tertiary]
+                   action:OTSettingsActionLicense];
+    [self addRowWithTitle:@"Acerca de OpenTune 9"
+                 subtitle:@"Port para iPad mini 1 / iOS 9"
+                     icon:OTIconMusicNote
+                     tint:[OTTheme primary]
+                   action:OTSettingsActionAbout];
 }
 
-- (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section
+- (void)addSection:(NSString *)title
 {
-    UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, tableView.bounds.size.width, 40.0)];
-    header.backgroundColor = [OTTheme background];
-    UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(20.0, 12.0, tableView.bounds.size.width - 40.0, 20.0)];
+    UILabel *label = [[UILabel alloc] initWithFrame:CGRectZero];
     label.font = [OTTheme labelLarge];
-    label.textColor = [OTTheme primary];
-    label.text = [[self tableView:tableView titleForHeaderInSection:section] uppercaseString];
-    [header addSubview:label];
-    return header;
+    label.textColor = [OTTheme secondaryText];
+    label.attributedText = [[NSAttributedString alloc] initWithString:[title uppercaseString]
+                                                           attributes:@{
+        NSFontAttributeName: [OTTheme labelLarge],
+        NSForegroundColorAttributeName: [OTTheme secondaryText],
+        NSKernAttributeName: @(1.1)
+    }];
+    [self.contentView addSubview:label];
+    [self.sectionLabels addObject:label];
 }
 
-- (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section
+- (OTSettingsRow *)addRowWithTitle:(NSString *)title
+                          subtitle:(NSString *)subtitle
+                              icon:(OTIcon)icon
+                              tint:(UIColor *)tint
+                            action:(OTSettingsAction)action
 {
-    return 40.0;
+    OTSettingsRow *row = [[OTSettingsRow alloc] initWithTitle:title subtitle:subtitle icon:icon tint:tint];
+    row.tag = action;
+    [row addTarget:self action:@selector(handleAction:) forControlEvents:UIControlEventTouchUpInside];
+    [self.contentView addSubview:row];
+    [self.rows addObject:row];
+    return row;
 }
 
-- (CGFloat)tableView:(UITableView *)tableView heightForFooterInSection:(NSInteger)section
-{
-    return 8.0;
-}
+#pragma mark - Layout
 
-- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
+- (void)viewDidLayoutSubviews
 {
-    static NSString *identifier = @"OTSettingsCell";
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:identifier];
-    if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:identifier];
-        cell.backgroundColor = [OTTheme surface];
-        cell.textLabel.textColor = [OTTheme text];
-        cell.textLabel.font = [OTTheme bodyLarge];
-        cell.detailTextLabel.textColor = [OTTheme secondaryText];
-        cell.detailTextLabel.font = [OTTheme bodyMedium];
-        UIView *selected = [[UIView alloc] init];
-        selected.backgroundColor = [OTTheme surfaceHigh];
-        cell.selectedBackgroundView = selected;
+    [super viewDidLayoutSubviews];
+
+    CGFloat width = self.view.bounds.size.width;
+    CGFloat top = self.topLayoutGuide.length;
+    self.topBar.frame = CGRectMake(0, 0, width, top + 108.0);
+    UIButton *back = (UIButton *)[self.topBar viewWithTag:1];
+    back.frame = CGRectMake(10.0, top + 6.0, 44.0, 44.0);
+    self.titleLabel.frame = CGRectMake(24.0, top + 54.0, width - 48.0, 50.0);
+
+    self.scrollView.frame = CGRectMake(0, top + 104.0, width, self.view.bounds.size.height - top - 104.0);
+    self.scrollView.contentInset = UIEdgeInsetsMake(0, 0, OTBottomInset() + 24.0, 0);
+    self.scrollView.scrollIndicatorInsets = self.scrollView.contentInset;
+
+    CGFloat side = 24.0;
+    CGFloat contentWidth = width - side * 2.0;
+    CGFloat y = 8.0;
+
+    self.appCard.frame = CGRectMake(side, y, contentWidth, 108.0);
+    UIView *appIcon = [self.appCard viewWithTag:1];
+    appIcon.frame = CGRectMake(20.0, 22.0, 64.0, 64.0);
+    UIImageView *note = (UIImageView *)[self.appCard viewWithTag:2];
+    note.frame = CGRectMake(37.0, 39.0, 30.0, 30.0);
+    UILabel *appName = (UILabel *)[self.appCard viewWithTag:3];
+    appName.frame = CGRectMake(100.0, 22.0, contentWidth - 120.0, 38.0);
+    self.versionChip.frame = CGRectMake(100.0, 62.0, 78.0, 24.0);
+    y += 108.0 + 16.0;
+
+    CGFloat gap = 12.0;
+    CGFloat cardWidth = (contentWidth - gap) / 2.0;
+    CGFloat cardHeight = 132.0;
+    for (NSInteger i = 0; i < (NSInteger)self.gridCards.count; i++) {
+        CGFloat x = side + (i % 2) * (cardWidth + gap);
+        CGFloat rowY = y + (i / 2) * (cardHeight + gap);
+        self.gridCards[i].frame = CGRectMake(x, rowY, cardWidth, cardHeight);
     }
-    cell.accessoryType = UITableViewCellAccessoryNone;
-    cell.accessoryView = nil;
-    cell.textLabel.text = @"";
-    cell.detailTextLabel.text = @"";
+    y += cardHeight * 2.0 + gap + 20.0;
 
-    OTStore *store = [OTStore sharedStore];
-
-    if (indexPath.section == 0) {
-        BOOL loggedIn = [[OTInnertube shared] isLoggedIn];
-        cell.textLabel.text = loggedIn ? @"Cerrar sesión" : @"Iniciar sesión";
-        cell.detailTextLabel.text = loggedIn ? @"Sesión iniciada" : @"Recomendada";
-        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-    } else if (indexPath.section == 1) {
-        if (indexPath.row == 0) {
-            cell.textLabel.text = @"Color de acento";
-            cell.detailTextLabel.text = @"";
-            cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-            UIView *dot = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 22, 22)];
-            dot.backgroundColor = [OTTheme primary];
-            dot.layer.cornerRadius = 11.0;
-            cell.accessoryView = dot;
-        } else {
-            cell.textLabel.text = @"Negro puro";
-            UISwitch *toggle = [[UISwitch alloc] initWithFrame:CGRectZero];
-            toggle.onTintColor = [OTTheme primary];
-            toggle.on = [OTTheme pureBlack];
-            [toggle addTarget:self action:@selector(pureBlackChanged:) forControlEvents:UIControlEventValueChanged];
-            cell.accessoryView = toggle;
-        }
-    } else if (indexPath.section == 2) {
-        if (indexPath.row == 0) {
-            cell.textLabel.text = @"Calidad de audio";
-            NSArray *names = @[@"Baja", @"Alta", @"Máxima"];
-            cell.detailTextLabel.text = names[[store audioQuality]];
-            cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-        } else {
-            cell.textLabel.text = @"Descargas";
-            cell.detailTextLabel.text = [OTTheme formatBytes:[store downloadsSize]];
-            cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-        }
-    } else if (indexPath.section == 3) {
-        if (indexPath.row == 0) {
-            cell.textLabel.text = @"Borrar historial";
-        } else if (indexPath.row == 1) {
-            cell.textLabel.text = @"Borrar búsquedas";
-        } else {
-            cell.textLabel.text = @"Borrar caché de imágenes";
-            cell.detailTextLabel.text = [OTTheme formatBytes:[[OTImageCache sharedCache] diskUsage]];
-        }
-        cell.textLabel.textColor = [OTTheme error];
-    } else {
-        if (indexPath.row == 0) {
-            cell.textLabel.text = @"Versión";
-            cell.textLabel.textColor = [OTTheme text];
-            NSString *version = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleShortVersionString"] ?: @"1.0";
-            cell.detailTextLabel.text = version;
-        } else if (indexPath.row == 1) {
-            cell.textLabel.text = @"Licencia";
-            cell.textLabel.textColor = [OTTheme text];
-            cell.detailTextLabel.text = @"GPL-3.0";
-            cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-        } else {
-            cell.textLabel.text = @"Acerca de OpenTune 9";
-            cell.textLabel.textColor = [OTTheme text];
-            cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-        }
+    CGFloat chipGap = 10.0;
+    CGFloat chipWidth = (contentWidth - chipGap * 2.0) / 3.0;
+    for (NSInteger i = 0; i < (NSInteger)self.chips.count; i++) {
+        self.chips[i].frame = CGRectMake(side + i * (chipWidth + chipGap), y, chipWidth, 48.0);
     }
-    return cell;
-}
+    y += 48.0 + 24.0;
 
-- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath
-{
-    [tableView deselectRowAtIndexPath:indexPath animated:YES];
-
-    if (indexPath.section == 0) {
-        if ([[OTInnertube shared] isLoggedIn]) {
-            [self confirmLogout];
-        } else {
-            [self showLogin];
+    NSInteger sectionIndex = 0;
+    NSInteger rowIndex = 0;
+    NSInteger sectionCounts[8] = {2, 2, 3, 1, 3, 0, 0, 0};
+    for (NSInteger i = 0; i < (NSInteger)self.rows.count; i++) {
+        if (i == 0 || rowIndex >= sectionCounts[sectionIndex]) {
+            if (i > 0) {
+                sectionIndex++;
+                rowIndex = 0;
+            }
+            if (sectionIndex < (NSInteger)self.sectionLabels.count) {
+                UILabel *label = self.sectionLabels[sectionIndex];
+                label.frame = CGRectMake(side + 4.0, y, contentWidth - 8.0, 32.0);
+                y += 40.0;
+            }
         }
-        return;
+        OTSettingsRow *row = self.rows[i];
+        row.frame = CGRectMake(side, y, contentWidth, 72.0);
+        y += 72.0 + 8.0;
+        rowIndex++;
     }
 
-    if (indexPath.section == 1) {
-        if (indexPath.row == 0) {
+    y += 12.0;
+    self.contentView.frame = CGRectMake(0, 0, width, y);
+    self.scrollView.contentSize = CGSizeMake(width, y);
+}
+
+#pragma mark - Acciones
+
+- (void)handleAction:(UIControl *)sender
+{
+    OTSettingsAction action = (OTSettingsAction)sender.tag;
+    switch (action) {
+        case OTSettingsActionAppearance:
             [self showAccentPicker];
-        }
-        return;
-    }
-
-    if (indexPath.section == 2) {
-        if (indexPath.row == 0) {
+            break;
+        case OTSettingsActionPureBlack:
+            [self.pureBlackSwitch setOn:!self.pureBlackSwitch.isOn animated:YES];
+            [self pureBlackChanged:self.pureBlackSwitch];
+            break;
+        case OTSettingsActionPlayerAudio:
             [self showQualityPicker];
-        } else {
+            break;
+        case OTSettingsActionDownloads:
             [self showDownloadsManager];
-        }
-        return;
-    }
-
-    if (indexPath.section == 3) {
-        if (indexPath.row == 0) {
+            break;
+        case OTSettingsActionClearHistory:
             [self confirmClearHistory];
-        } else if (indexPath.row == 1) {
+            break;
+        case OTSettingsActionClearSearches:
             [self confirmClearSearches];
-        } else {
+            break;
+        case OTSettingsActionClearCache:
             [self confirmClearCache];
-        }
-        return;
-    }
-
-    if (indexPath.section == 4) {
-        if (indexPath.row == 1) {
+            break;
+        case OTSettingsActionAccount:
+            if ([[OTInnertube shared] isLoggedIn]) {
+                [self confirmLogout];
+            } else {
+                [self showLogin];
+            }
+            break;
+        case OTSettingsActionVersion:
+            break;
+        case OTSettingsActionLicense:
             [self showLicense];
-        } else if (indexPath.row == 2) {
+            break;
+        case OTSettingsActionAbout:
             [self showAbout];
-        }
+            break;
+        case OTSettingsActionPrivacy:
+            [self showPrivacyInfo];
+            break;
+        case OTSettingsActionDiscord:
+            [self showInfoWithTitle:@"Discord"
+                            message:@"Únete a la comunidad de OpenTune para compartir música, ideas y novedades."];
+            break;
+        case OTSettingsActionIntegrations:
+            [self showInfoWithTitle:@"Integraciones"
+                            message:@"Conecta OpenTune con Last.fm, Discord y otros servicios desde la app original."];
+            break;
+        case OTSettingsActionTogether:
+            [self showInfoWithTitle:@"Juntos"
+                            message:@"Escucha música al mismo tiempo con tus amigos usando Music Together."];
+            break;
+        default:
+            break;
     }
+}
+
+- (void)refreshValues
+{
+    OTStore *store = [OTStore sharedStore];
+    NSArray *names = @[@"Baja", @"Alta", @"Máxima"];
+    self.qualityRow.subtitleLabel.text = [NSString stringWithFormat:@"Calidad de audio · %@",
+                                          names[[store audioQuality]]];
+    self.downloadsRow.subtitleLabel.text = [NSString stringWithFormat:@"%@ descargados",
+                                            [OTTheme formatBytes:[store downloadsSize]]];
+    self.cacheRow.subtitleLabel.text = [NSString stringWithFormat:@"%@ en caché",
+                                        [OTTheme formatBytes:[[OTImageCache sharedCache] diskUsage]]];
+    self.accountRow.titleLabel.text = [[OTInnertube shared] isLoggedIn] ? @"Cerrar sesión" : @"Iniciar sesión";
+    self.accountRow.subtitleLabel.text = [[OTInnertube shared] isLoggedIn]
+        ? @"Sesión iniciada" : @"Recomendada para reproducir";
+    [self.pureBlackSwitch setOn:[OTTheme pureBlack] animated:NO];
 }
 
 #pragma mark - Cuenta
 
 - (void)showLogin
 {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Iniciar sesión"
-                                                                   message:@"YouTube exige una sesión para reproducir la mayoría de canciones (control anti-bot).\n\n1) En un ordenador entra en music.youtube.com con tu cuenta.\n2) Pulsa F12 → Application/Storage → Cookies → music.youtube.com.\n3) Copia el valor de SAPISID y pégalo aquí (también vale pegar la línea completa de cookies con SAPISID=…)."
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    [alert addTextFieldWithConfigurationHandler:^(UITextField *textField) {
-        textField.placeholder = @"SAPISID=…";
-        textField.autocapitalizationType = UITextAutocapitalizationTypeNone;
-        textField.autocorrectionType = UITextAutocorrectionTypeNo;
-    }];
     __weak typeof(self) weakSelf = self;
-    [alert addAction:[UIAlertAction actionWithTitle:@"Guardar" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        NSString *text = alert.textFields.firstObject.text ?: @"";
-        text = [text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-        if (text.length == 0) {
+    OTDialogViewController *dialog =
+        [OTDialogViewController promptWithTitle:@"Iniciar sesión"
+                                        message:@"YouTube exige una sesión para reproducir la mayoría de canciones (control anti-bot).\n\n1) En un ordenador entra en music.youtube.com con tu cuenta.\n2) Pulsa F12 → Application/Storage → Cookies → music.youtube.com.\n3) Copia el valor de SAPISID y pégalo aquí."
+                                    placeholder:@"SAPISID=…"
+                                          value:nil
+                                   confirmTitle:@"Guardar"
+                                     completion:^(NSString *text) {
+        NSString *value = [text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (value.length == 0) {
             return;
         }
-        if ([text rangeOfString:@"="].location == NSNotFound) {
-            text = [@"SAPISID=" stringByAppendingString:text];
+        if ([value rangeOfString:@"="].location == NSNotFound) {
+            value = [@"SAPISID=" stringByAppendingString:value];
         }
-        [OTInnertube shared].cookie = text;
-        [weakSelf.tableView reloadData];
+        [OTInnertube shared].cookie = value;
+        [weakSelf refreshValues];
         [[OTInnertube shared] validateLoginWithCompletion:^(BOOL valid, NSError *error) {
             if (valid) {
                 [OTTheme showToast:@"Sesión iniciada" inView:weakSelf.view];
@@ -284,24 +695,27 @@
                 [OTTheme showToast:@"Cookie guardada, pero YouTube no confirmó la sesión" inView:weakSelf.view];
             }
         }];
-    }]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cancelar" style:UIAlertActionStyleCancel handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
+    }];
+    [dialog presentFrom:self];
 }
 
 - (void)confirmLogout
 {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Cerrar sesión"
-                                                                   message:@"Se eliminará la cookie guardada de este dispositivo."
-                                                            preferredStyle:UIAlertControllerStyleAlert];
     __weak typeof(self) weakSelf = self;
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cerrar sesión" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+    OTDialogViewController *dialog =
+        [OTDialogViewController dialogWithTitle:@"Cerrar sesión"
+                                        message:@"Se eliminará la cookie guardada de este dispositivo."
+                                   confirmTitle:@"Cerrar sesión"
+                                    cancelTitle:@"Cancelar"
+                                     completion:^(BOOL confirmed) {
+        if (!confirmed) {
+            return;
+        }
         [[OTInnertube shared] clearLogin];
-        [weakSelf.tableView reloadData];
+        [weakSelf refreshValues];
         [OTTheme showToast:@"Sesión cerrada" inView:weakSelf.view];
-    }]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cancelar" style:UIAlertActionStyleCancel handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
+    }];
+    [dialog presentFrom:self];
 }
 
 #pragma mark - Apariencia
@@ -309,44 +723,42 @@
 - (void)showAccentPicker
 {
     NSArray *colors = @[
+        @{@"name": @"Lavanda", @"hex": @0xA9B8FF},
         @{@"name": @"Rosa OpenTune", @"hex": @0xED5564},
         @{@"name": @"Naranja", @"hex": @0xFF7A59},
         @{@"name": @"Ámbar", @"hex": @0xF5C542},
         @{@"name": @"Verde", @"hex": @0x4CAF7D},
         @{@"name": @"Azul", @"hex": @0x4A9DE0},
         @{@"name": @"Violeta", @"hex": @0x9B7BE0},
-        @{@"name": @"Magenta", @"hex": @0xE05A9C},
-        @{@"name": @"Gris", @"hex": @0x8A94A6}
+        @{@"name": @"Magenta", @"hex": @0xE05A9C}
     ];
-    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"Color de acento"
-                                                                  message:nil
-                                                           preferredStyle:UIAlertControllerStyleActionSheet];
     __weak typeof(self) weakSelf = self;
+    NSMutableArray<OTSheetAction *> *actions = [NSMutableArray array];
     for (NSDictionary *entry in colors) {
-        [sheet addAction:[UIAlertAction actionWithTitle:entry[@"name"]
-                                                   style:UIAlertActionStyleDefault
-                                                 handler:^(UIAlertAction *action) {
+        OTSheetAction *action = [OTSheetAction actionWithTitle:entry[@"name"]
+                                                          icon:OTIconPalette
+                                                       handler:^{
             NSUInteger hex = [entry[@"hex"] unsignedIntegerValue];
             [OTTheme setAccentHex:hex];
             [[OTStore sharedStore] setSetting:@(hex) forKey:@"ot.accent"];
-            [weakSelf.tableView reloadData];
+            [weakSelf refreshValues];
             [OTTheme showToast:@"Color actualizado" inView:weakSelf.view];
-        }]];
+        }];
+        action.selected = ([OTTheme accentHex] == [entry[@"hex"] unsignedIntegerValue]);
+        [actions addObject:action];
     }
-    [sheet addAction:[UIAlertAction actionWithTitle:@"Cancelar" style:UIAlertActionStyleCancel handler:nil]];
-    if (sheet.popoverPresentationController) {
-        sheet.popoverPresentationController.sourceView = self.view;
-        sheet.popoverPresentationController.sourceRect = CGRectMake(self.view.bounds.size.width / 2.0,
-                                                                    self.view.bounds.size.height / 2.0, 1, 1);
-    }
-    [self presentViewController:sheet animated:YES completion:nil];
+    [actions addObject:[OTSheetAction actionWithTitle:@"Cancelar" icon:OTIconClose handler:nil]];
+    OTSheetViewController *sheet = [OTSheetViewController sheetWithTitle:@"Color de acento"
+                                                                subtitle:@"Elige el color principal de OpenTune"
+                                                                 actions:actions];
+    [sheet presentFrom:self];
 }
 
-- (void)pureBlackChanged:(UISwitch *)sender
+- (void)pureBlackChanged:(OTSwitch *)sender
 {
-    [OTTheme setPureBlack:sender.on];
-    [[OTStore sharedStore] setSetting:@(sender.on) forKey:@"ot.pureBlack"];
-    [self.tableView reloadData];
+    [OTTheme setPureBlack:sender.isOn];
+    [[OTStore sharedStore] setSetting:@(sender.isOn) forKey:@"ot.pureBlack"];
+    [self.view setNeedsLayout];
 }
 
 #pragma mark - Reproduccion
@@ -354,25 +766,24 @@
 - (void)showQualityPicker
 {
     NSArray *names = @[@"Baja (ahorra datos)", @"Alta", @"Máxima"];
-    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"Calidad de audio"
-                                                                  message:@"La calidad real depende de la pista disponible."
-                                                           preferredStyle:UIAlertControllerStyleActionSheet];
     __weak typeof(self) weakSelf = self;
+    NSMutableArray<OTSheetAction *> *actions = [NSMutableArray array];
     for (NSInteger i = 0; i < (NSInteger)names.count; i++) {
-        [sheet addAction:[UIAlertAction actionWithTitle:names[i]
-                                                   style:UIAlertActionStyleDefault
-                                                 handler:^(UIAlertAction *action) {
+        OTSheetAction *action = [OTSheetAction actionWithTitle:names[i]
+                                                          icon:OTIconEqualizer
+                                                       handler:^{
             [[OTStore sharedStore] setAudioQuality:i];
-            [weakSelf.tableView reloadData];
-        }]];
+            [weakSelf refreshValues];
+            [OTTheme showToast:@"Calidad actualizada" inView:weakSelf.view];
+        }];
+        action.selected = (i == [[OTStore sharedStore] audioQuality]);
+        [actions addObject:action];
     }
-    [sheet addAction:[UIAlertAction actionWithTitle:@"Cancelar" style:UIAlertActionStyleCancel handler:nil]];
-    if (sheet.popoverPresentationController) {
-        sheet.popoverPresentationController.sourceView = self.view;
-        sheet.popoverPresentationController.sourceRect = CGRectMake(self.view.bounds.size.width / 2.0,
-                                                                    self.view.bounds.size.height / 2.0, 1, 1);
-    }
-    [self presentViewController:sheet animated:YES completion:nil];
+    [actions addObject:[OTSheetAction actionWithTitle:@"Cancelar" icon:OTIconClose handler:nil]];
+    OTSheetViewController *sheet = [OTSheetViewController sheetWithTitle:@"Calidad de audio"
+                                                                subtitle:@"La calidad real depende de la pista disponible"
+                                                                 actions:actions];
+    [sheet presentFrom:self];
 }
 
 - (void)showDownloadsManager
@@ -382,89 +793,116 @@
         [OTTheme showToast:@"No hay descargas" inView:self.view];
         return;
     }
-    NSString *message = [NSString stringWithFormat:@"%lu canciones · %@",
-                         (unsigned long)items.count,
-                         [OTTheme formatBytes:[[OTStore sharedStore] downloadsSize]]];
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Descargas"
-                                                                   message:message
-                                                            preferredStyle:UIAlertControllerStyleAlert];
     __weak typeof(self) weakSelf = self;
-    [alert addAction:[UIAlertAction actionWithTitle:@"Eliminar todas" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+    NSString *subtitle = [NSString stringWithFormat:@"%lu canciones · %@",
+                          (unsigned long)items.count,
+                          [OTTheme formatBytes:[[OTStore sharedStore] downloadsSize]]];
+    NSMutableArray<OTSheetAction *> *actions = [NSMutableArray array];
+    OTSheetAction *remove = [OTSheetAction actionWithTitle:@"Eliminar todas las descargas"
+                                                      icon:OTIconTrash
+                                                   handler:^{
         for (OTItem *item in items) {
             [[OTStore sharedStore] removeDownloadForItem:item];
         }
-        [weakSelf.tableView reloadData];
+        [weakSelf refreshValues];
         [OTTheme showToast:@"Descargas eliminadas" inView:weakSelf.view];
-    }]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cerrar" style:UIAlertActionStyleCancel handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
+    }];
+    remove.destructive = YES;
+    [actions addObject:remove];
+    [actions addObject:[OTSheetAction actionWithTitle:@"Cerrar" icon:OTIconClose handler:nil]];
+    OTSheetViewController *sheet = [OTSheetViewController sheetWithTitle:@"Descargas"
+                                                                subtitle:subtitle
+                                                                 actions:actions];
+    [sheet presentFrom:self];
 }
 
 #pragma mark - Datos
 
 - (void)confirmClearHistory
 {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Borrar historial"
-                                                                   message:@"¿Vaciar el historial de reproducción?"
-                                                            preferredStyle:UIAlertControllerStyleAlert];
     __weak typeof(self) weakSelf = self;
-    [alert addAction:[UIAlertAction actionWithTitle:@"Borrar" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+    OTDialogViewController *dialog =
+        [OTDialogViewController dialogWithTitle:@"Borrar historial"
+                                        message:@"¿Vaciar el historial de reproducción?"
+                                   confirmTitle:@"Borrar"
+                                    cancelTitle:@"Cancelar"
+                                     completion:^(BOOL confirmed) {
+        if (!confirmed) {
+            return;
+        }
         [[OTStore sharedStore] clearHistory];
         [OTTheme showToast:@"Historial borrado" inView:weakSelf.view];
-    }]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cancelar" style:UIAlertActionStyleCancel handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
+    }];
+    [dialog presentFrom:self];
 }
 
 - (void)confirmClearSearches
 {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Borrar búsquedas"
-                                                                   message:@"¿Vaciar el historial de búsquedas?"
-                                                            preferredStyle:UIAlertControllerStyleAlert];
     __weak typeof(self) weakSelf = self;
-    [alert addAction:[UIAlertAction actionWithTitle:@"Borrar" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+    OTDialogViewController *dialog =
+        [OTDialogViewController dialogWithTitle:@"Borrar búsquedas"
+                                        message:@"¿Vaciar el historial de búsquedas?"
+                                   confirmTitle:@"Borrar"
+                                    cancelTitle:@"Cancelar"
+                                     completion:^(BOOL confirmed) {
+        if (!confirmed) {
+            return;
+        }
         [[OTStore sharedStore] clearSearchHistory];
         [OTTheme showToast:@"Búsquedas borradas" inView:weakSelf.view];
-    }]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cancelar" style:UIAlertActionStyleCancel handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
+    }];
+    [dialog presentFrom:self];
 }
 
 - (void)confirmClearCache
 {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Borrar caché"
-                                                                   message:@"Se eliminarán las portadas descargadas."
-                                                            preferredStyle:UIAlertControllerStyleAlert];
     __weak typeof(self) weakSelf = self;
-    [alert addAction:[UIAlertAction actionWithTitle:@"Borrar" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+    OTDialogViewController *dialog =
+        [OTDialogViewController dialogWithTitle:@"Borrar caché"
+                                        message:@"Se eliminarán las portadas descargadas."
+                                   confirmTitle:@"Borrar"
+                                    cancelTitle:@"Cancelar"
+                                     completion:^(BOOL confirmed) {
+        if (!confirmed) {
+            return;
+        }
         [[OTImageCache sharedCache] clearMemoryCache];
         [[OTImageCache sharedCache] clearDiskCache];
-        [weakSelf.tableView reloadData];
+        [weakSelf refreshValues];
         [OTTheme showToast:@"Caché borrada" inView:weakSelf.view];
-    }]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cancelar" style:UIAlertActionStyleCancel handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
+    }];
+    [dialog presentFrom:self];
 }
 
 #pragma mark - Informacion
 
+- (void)showInfoWithTitle:(NSString *)title message:(NSString *)message
+{
+    OTDialogViewController *dialog =
+        [OTDialogViewController dialogWithTitle:title
+                                        message:message
+                                   confirmTitle:@"Entendido"
+                                    cancelTitle:@"Cerrar"
+                                     completion:nil];
+    [dialog presentFrom:self];
+}
+
+- (void)showPrivacyInfo
+{
+    [self showInfoWithTitle:@"Privacidad"
+                    message:@"OpenTune 9 no recopila datos personales. Las cookies y el historial se guardan solo en este dispositivo."];
+}
+
 - (void)showLicense
 {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Licencia"
-                                                                   message:@"OpenTune 9 se distribuye bajo la GNU General Public License v3.0.\n\nEste proyecto es un port no oficial de OpenTune, creado por Arturo254, para iPad mini 1 con iOS 9."
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cerrar" style:UIAlertActionStyleDefault handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
+    [self showInfoWithTitle:@"Licencia"
+                    message:@"OpenTune 9 se distribuye bajo la GNU General Public License v3.0.\n\nEste proyecto es un port no oficial de OpenTune, creado por Arturo254, para iPad mini 1 con iOS 9."];
 }
 
 - (void)showAbout
 {
-    NSString *message = @"OpenTune 9\n\nCliente de YouTube Music para iPad mini 1 (iOS 9, armv7).\n\nInspirado en OpenTune de Arturo254.\n\nReproductor basado en AVPlayer. Letras por LRCLIB y YouTube Music.";
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Acerca de"
-                                                                   message:message
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cerrar" style:UIAlertActionStyleDefault handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
+    [self showInfoWithTitle:@"Acerca de"
+                    message:@"OpenTune 9\n\nCliente de YouTube Music para iPad mini 1 (iOS 9, armv7).\n\nInspirado en OpenTune de Arturo254.\n\nReproductor basado en AVPlayer. Letras por LRCLIB y YouTube Music."];
 }
 
 @end

@@ -14,20 +14,24 @@
 #import "OTPlayerViewController.h"
 
 NSString *const OTBottomInsetDidChangeNotification = @"OTBottomInsetDidChangeNotification";
+NSString *const OTLibrarySelectTabNotification = @"OTLibrarySelectTabNotification";
 
-static CGFloat gBottomInset = 96.0;
+static CGFloat gBottomInset = 104.0;
 
 CGFloat OTBottomInset(void)
 {
     return gBottomInset;
 }
 
+#pragma mark - Boton de pestana
+
 @interface OTTabButton : UIControl
 @property (nonatomic, strong) UIImageView *iconView;
 @property (nonatomic, strong) UILabel *label;
 @property (nonatomic, assign) OTIcon icon;
+@property (nonatomic, assign) BOOL expanded;
 - (instancetype)initWithIcon:(OTIcon)icon title:(NSString *)title;
-- (void)setSelectedAppearance:(BOOL)selected;
+- (void)setSelectedAppearance:(BOOL)selected animated:(BOOL)animated;
 @end
 
 @implementation OTTabButton
@@ -37,6 +41,9 @@ CGFloat OTBottomInset(void)
     self = [super initWithFrame:CGRectZero];
     if (self) {
         _icon = icon;
+        self.layer.cornerRadius = 24.0;
+        self.clipsToBounds = YES;
+
         _iconView = [[UIImageView alloc] initWithFrame:CGRectZero];
         _iconView.contentMode = UIViewContentModeScaleAspectFit;
         _iconView.image = [OTTheme icon:icon size:24];
@@ -45,34 +52,47 @@ CGFloat OTBottomInset(void)
 
         _label = [[UILabel alloc] initWithFrame:CGRectZero];
         _label.text = title;
-        _label.font = [OTTheme font:10.5 weight:UIFontWeightMedium];
-        _label.textAlignment = NSTextAlignmentCenter;
+        _label.font = [OTTheme font:13.0 weight:UIFontWeightSemibold];
+        _label.textAlignment = NSTextAlignmentLeft;
         _label.userInteractionEnabled = NO;
+        _label.hidden = YES;
         [self addSubview:_label];
 
-        [self setSelectedAppearance:NO];
+        [self setSelectedAppearance:NO animated:NO];
     }
     return self;
 }
 
-- (void)setSelectedAppearance:(BOOL)selected
+- (void)setSelectedAppearance:(BOOL)selected animated:(BOOL)animated
 {
+    self.expanded = selected;
+    self.backgroundColor = selected ? [OTTheme secondaryContainer] : [UIColor clearColor];
     UIColor *color = selected ? [OTTheme onSecondaryContainer] : [OTTheme secondaryText];
     self.iconView.tintColor = color;
     self.label.textColor = color;
     self.iconView.image = [OTTheme icon:self.icon size:24 weight:selected ? 2.2 : 1.9];
+    self.label.hidden = !selected;
+    [self setNeedsLayout];
 }
 
 - (void)layoutSubviews
 {
     [super layoutSubviews];
     CGFloat width = self.bounds.size.width;
-    self.iconView.frame = CGRectMake((width - 24.0) / 2.0, 5.0, 24.0, 24.0);
-    self.label.frame = CGRectMake(0, 31.0, width, 14.0);
+    CGFloat height = self.bounds.size.height;
+    if (self.expanded) {
+        self.iconView.frame = CGRectMake(18.0, (height - 24.0) / 2.0, 24.0, 24.0);
+        self.label.frame = CGRectMake(50.0, 0, MAX(20.0, width - 62.0), height);
+    } else {
+        self.iconView.frame = CGRectMake((width - 24.0) / 2.0, (height - 24.0) / 2.0, 24.0, 24.0);
+        self.label.frame = CGRectZero;
+    }
 }
 
 @end
 
+
+#pragma mark - Raiz
 
 @interface OTRootViewController ()
 
@@ -80,7 +100,6 @@ CGFloat OTBottomInset(void)
 @property (nonatomic, strong) NSArray<UINavigationController *> *navControllers;
 @property (nonatomic, strong) NSArray<OTTabButton *> *tabButtons;
 @property (nonatomic, strong) UIView *barView;
-@property (nonatomic, strong) UIView *pillView;
 @property (nonatomic, strong) OTMiniPlayerView *miniPlayer;
 @property (nonatomic, assign) NSInteger selectedTab;
 @property (nonatomic, assign) BOOL miniVisible;
@@ -158,29 +177,19 @@ CGFloat OTBottomInset(void)
     }
     self.navControllers = navs;
 
-    CGFloat barHeight = 64.0;
-    CGFloat side = 12.0;
-    CGFloat bottom = 8.0;
-    CGRect bounds = self.view.bounds;
-
-    self.barView = [[UIView alloc] initWithFrame:CGRectMake(side,
-                                                           bounds.size.height - bottom - barHeight,
-                                                           bounds.size.width - side * 2,
-                                                           barHeight)];
+    self.barView = [[UIView alloc] initWithFrame:CGRectZero];
     self.barView.backgroundColor = [OTTheme surfaceContainer];
-    self.barView.layer.cornerRadius = 28.0;
-    self.barView.layer.borderWidth = 0.5;
-    self.barView.layer.borderColor = [OTTheme colorWithHex:0x3A383F].CGColor;
+    self.barView.layer.cornerRadius = 32.0;
+    self.barView.layer.borderWidth = 1.0;
+    self.barView.layer.borderColor = [OTTheme cardBorder].CGColor;
+    self.barView.layer.shadowColor = [UIColor blackColor].CGColor;
+    self.barView.layer.shadowOpacity = 0.34;
+    self.barView.layer.shadowRadius = 18.0;
+    self.barView.layer.shadowOffset = CGSizeMake(0, 8);
     self.barView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleTopMargin;
     [self.view addSubview:self.barView];
 
-    self.pillView = [[UIView alloc] initWithFrame:CGRectZero];
-    self.pillView.backgroundColor = [OTTheme secondaryContainer];
-    self.pillView.layer.cornerRadius = 22.0;
-    self.pillView.userInteractionEnabled = NO;
-    [self.barView addSubview:self.pillView];
-
-    NSArray *titles = @[@"Inicio", @"Buscar", @"Géneros", @"Biblioteca"];
+    NSArray *titles = @[@"Inicio", @"Buscar", @"Ánimos", @"Biblioteca"];
     NSArray *icons = @[@(OTIconHome), @(OTIconSearch), @(OTIconMood), @(OTIconLibrary)];
     NSMutableArray *buttons = [NSMutableArray array];
     for (NSInteger i = 0; i < 4; i++) {
@@ -207,32 +216,27 @@ CGFloat OTBottomInset(void)
 
     CGRect bounds = self.view.bounds;
     CGFloat barHeight = 64.0;
-    CGFloat side = 12.0;
-    CGFloat bottomMargin = 8.0;
+    CGFloat side = 16.0;
+    CGFloat bottomMargin = 10.0;
 
     self.contentContainer.frame = bounds;
     self.barView.frame = CGRectMake(side,
                                     bounds.size.height - bottomMargin - barHeight,
-                                    bounds.size.width - side * 2,
+                                    bounds.size.width - side * 2.0,
                                     barHeight);
 
-    CGFloat itemWidth = self.barView.bounds.size.width / 4.0;
-    for (NSInteger i = 0; i < (NSInteger)self.tabButtons.count; i++) {
-        OTTabButton *button = self.tabButtons[i];
-        button.frame = CGRectMake(itemWidth * i, 0, itemWidth, barHeight);
-    }
-    [self layoutPillAnimated:NO];
+    [self layoutTabButtonsAnimated:NO];
 
-    CGFloat miniHeight = self.miniVisible ? 64.0 : 0.0;
-    CGFloat miniY = CGRectGetMinY(self.barView.frame) - (self.miniVisible ? 76.0 : 0.0);
+    CGFloat miniHeight = 64.0;
+    CGFloat miniY = CGRectGetMinY(self.barView.frame) - 8.0 - miniHeight;
     self.miniPlayer.frame = CGRectMake(side + 4.0, miniY, bounds.size.width - (side + 4.0) * 2.0, miniHeight);
     self.miniPlayer.hidden = !self.miniVisible;
 
-    CGFloat inset = bounds.size.height - miniY + 16.0;
+    CGFloat inset;
     if (self.miniVisible) {
-        inset = bounds.size.height - miniY + 16.0;
+        inset = bounds.size.height - miniY + 14.0;
     } else {
-        inset = bounds.size.height - CGRectGetMinY(self.barView.frame) + 16.0;
+        inset = bounds.size.height - CGRectGetMinY(self.barView.frame) + 14.0;
     }
     if (fabs(inset - gBottomInset) > 0.5) {
         gBottomInset = inset;
@@ -241,19 +245,34 @@ CGFloat OTBottomInset(void)
     [self propagateBottomInset];
 }
 
-- (void)layoutPillAnimated:(BOOL)animated
+- (void)layoutTabButtonsAnimated:(BOOL)animated
 {
-    CGFloat itemWidth = self.barView.bounds.size.width / 4.0;
-    CGRect target = CGRectMake(itemWidth * self.selectedTab + 6.0, 7.0, itemWidth - 12.0, 50.0);
+    CGFloat barWidth = self.barView.bounds.size.width;
+    CGFloat barHeight = self.barView.bounds.size.height;
+    CGFloat expanded = MIN(136.0, barWidth * 0.34);
+    NSInteger count = (NSInteger)self.tabButtons.count;
+    if (count == 0) {
+        return;
+    }
+    CGFloat rest = (barWidth - expanded) / (CGFloat)(count - 1);
+
+    void (^layout)(void) = ^{
+        CGFloat x = 0;
+        for (NSInteger i = 0; i < count; i++) {
+            OTTabButton *button = self.tabButtons[i];
+            CGFloat width = (i == self.selectedTab) ? expanded : rest;
+            button.frame = CGRectMake(x, 8.0, width, barHeight - 16.0);
+            x += width;
+        }
+    };
     if (animated) {
         [UIView animateWithDuration:0.28
                               delay:0
                             options:UIViewAnimationOptionCurveEaseOut
-                         animations:^{
-            self.pillView.frame = target;
-        } completion:nil];
+                         animations:layout
+                         completion:nil];
     } else {
-        self.pillView.frame = target;
+        layout();
     }
 }
 
@@ -288,9 +307,9 @@ CGFloat OTBottomInset(void)
 
     self.selectedTab = index;
     for (NSInteger i = 0; i < (NSInteger)self.tabButtons.count; i++) {
-        [self.tabButtons[i] setSelectedAppearance:(i == index)];
+        [self.tabButtons[i] setSelectedAppearance:(i == index) animated:YES];
     }
-    [self layoutPillAnimated:YES];
+    [self layoutTabButtonsAnimated:YES];
     [self propagateBottomInset];
 }
 

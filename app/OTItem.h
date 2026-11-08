@@ -28,6 +28,8 @@ typedef NS_ENUM(NSInteger, OTSectionStyle) {
 @property (nonatomic, copy) NSString *title;
 @property (nonatomic, copy) NSString *subtitle;
 @property (nonatomic, copy) NSString *thumbnailURL;
+// Hasta 4 portadas para dibujar el mosaico de las listas (como OpenTune).
+@property (nonatomic, strong) NSArray<NSString *> *mosaicURLs;
 @property (nonatomic, copy) NSString *artistsText;
 @property (nonatomic, copy) NSString *albumText;
 @property (nonatomic, copy) NSString *yearText;

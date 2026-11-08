@@ -9,6 +9,7 @@
 #import "OTRootViewController.h"
 
 #import <math.h>
+#import <QuartzCore/QuartzCore.h>
 
 static UIColor *OTColorFromValue(NSUInteger value)
 {
@@ -115,19 +116,19 @@ static UIColor *OTColorFromValue(NSUInteger value)
     self.lastHeaderWidth = width;
 
     CGFloat padding = 16.0;
-    CGFloat gap = 10.0;
+    CGFloat gap = 12.0;
     NSInteger columns = 2;
     CGFloat buttonWidth = (width - padding * 2.0 - gap * (columns - 1)) / columns;
-    CGFloat buttonHeight = 54.0;
+    CGFloat buttonHeight = 64.0;
     NSInteger rows = (NSInteger)ceil((double)self.moodItems.count / (double)columns);
-    CGFloat labelHeight = 44.0;
-    CGFloat height = labelHeight + rows * (buttonHeight + gap) + 8.0;
+    CGFloat labelHeight = 58.0;
+    CGFloat height = labelHeight + rows * (buttonHeight + gap) + 10.0;
 
     UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, width, height)];
     header.backgroundColor = [OTTheme background];
 
-    UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(padding, 4.0, width - padding * 2.0, 36.0)];
-    label.font = [OTTheme titleLarge];
+    UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(padding, 4.0, width - padding * 2.0, 40.0)];
+    label.font = [OTTheme font:28.0 weight:UIFontWeightBold];
     label.textColor = [OTTheme text];
     label.text = @"Ánimos y géneros";
     [header addSubview:label];
@@ -152,19 +153,32 @@ static UIColor *OTColorFromValue(NSUInteger value)
                                   buttonWidth,
                                   buttonHeight);
         button.tag = i;
-        button.backgroundColor = colors[i % colors.count];
+        UIColor *base = colors[i % colors.count];
         if (self.moodItems[i].colorValue != 0) {
-            button.backgroundColor = OTColorFromValue(self.moodItems[i].colorValue);
+            base = OTColorFromValue(self.moodItems[i].colorValue);
         }
-        button.layer.cornerRadius = 12.0;
+        button.backgroundColor = base;
+        button.layer.cornerRadius = 18.0;
         button.clipsToBounds = YES;
         button.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
-        button.titleEdgeInsets = UIEdgeInsetsMake(0, 16, 0, 12);
-        button.titleLabel.font = [OTTheme font:15.0 weight:UIFontWeightSemibold];
+        button.imageEdgeInsets = UIEdgeInsetsMake(0, 18, 0, 0);
+        button.titleEdgeInsets = UIEdgeInsetsMake(0, 30, 0, -30);
+        button.titleLabel.font = [OTTheme font:16.0 weight:UIFontWeightSemibold];
         button.titleLabel.numberOfLines = 2;
         button.titleLabel.textAlignment = NSTextAlignmentLeft;
+        [button setImage:[OTTheme icon:OTIconMood size:20] forState:UIControlStateNormal];
+        button.tintColor = [UIColor whiteColor];
         [button setTitle:self.moodItems[i].title forState:UIControlStateNormal];
         [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+
+        CAGradientLayer *gradient = [CAGradientLayer layer];
+        gradient.frame = button.bounds;
+        gradient.colors = @[(id)[[UIColor whiteColor] colorWithAlphaComponent:0.10].CGColor,
+                            (id)[[UIColor blackColor] colorWithAlphaComponent:0.30].CGColor];
+        gradient.startPoint = CGPointMake(0, 0);
+        gradient.endPoint = CGPointMake(1, 1);
+        [button.layer insertSublayer:gradient atIndex:0];
+
         [button addTarget:self action:@selector(moodTapped:) forControlEvents:UIControlEventTouchUpInside];
         [header addSubview:button];
     }

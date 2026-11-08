@@ -6,9 +6,27 @@
 #import "OTTheme.h"
 #import <math.h>
 
-static NSUInteger gAccentHex = 0xED5564;
+static NSUInteger gAccentHex = 0xA9B8FF;
 static BOOL gPureBlack = NO;
 static UIColor *gArtworkColor = nil;
+
+// Tipografia del OpenTune original: Poppins (Regular, Medium, SemiBold, Bold).
+static UIFont *OTPoppins(CGFloat size, CGFloat weight)
+{
+    NSString *name = @"Poppins-Regular";
+    if (weight >= UIFontWeightBold) {
+        name = @"Poppins-Bold";
+    } else if (weight >= UIFontWeightSemibold) {
+        name = @"Poppins-SemiBold";
+    } else if (weight >= UIFontWeightMedium) {
+        name = @"Poppins-Medium";
+    }
+    UIFont *font = [UIFont fontWithName:name size:size];
+    if (!font) {
+        font = [UIFont systemFontOfSize:size weight:weight];
+    }
+    return font;
+}
 
 static void OTDrawLine(CGContextRef ctx, CGFloat x1, CGFloat y1, CGFloat x2, CGFloat y2)
 {
@@ -92,27 +110,32 @@ static void OTDrawLine(CGContextRef ctx, CGFloat x1, CGFloat y1, CGFloat x2, CGF
 
 + (UIColor *)background
 {
-    return gPureBlack ? [UIColor blackColor] : [self colorWithHex:0x141218];
+    return gPureBlack ? [UIColor blackColor] : [self colorWithHex:0x0E0D12];
 }
 
 + (UIColor *)surface
 {
-    return gPureBlack ? [self colorWithHex:0x0A0A0C] : [self colorWithHex:0x1D1B20];
+    return gPureBlack ? [self colorWithHex:0x08080A] : [self colorWithHex:0x141318];
+}
+
++ (UIColor *)surfaceLow
+{
+    return gPureBlack ? [UIColor blackColor] : [self colorWithHex:0x111015];
 }
 
 + (UIColor *)surfaceContainer
 {
-    return gPureBlack ? [self colorWithHex:0x111114] : [self colorWithHex:0x211F26];
+    return gPureBlack ? [self colorWithHex:0x0F0F12] : [self colorWithHex:0x1A191F];
 }
 
 + (UIColor *)surfaceHigh
 {
-    return gPureBlack ? [self colorWithHex:0x17171A] : [self colorWithHex:0x2B2930];
+    return gPureBlack ? [self colorWithHex:0x16161A] : [self colorWithHex:0x232128];
 }
 
 + (UIColor *)surfaceHighest
 {
-    return gPureBlack ? [self colorWithHex:0x1E1E21] : [self colorWithHex:0x36343B];
+    return gPureBlack ? [self colorWithHex:0x1D1D22] : [self colorWithHex:0x2C2A33];
 }
 
 + (UIColor *)navBackground
@@ -120,59 +143,84 @@ static void OTDrawLine(CGContextRef ctx, CGFloat x1, CGFloat y1, CGFloat x2, CGF
     return [self surfaceContainer];
 }
 
++ (UIColor *)cardBorder
+{
+    return [self colorWithHex:0x2E2C36];
+}
+
 + (UIColor *)text
 {
-    return [self colorWithHex:0xE6E0E9];
+    return [self colorWithHex:0xEDEAF2];
 }
 
 + (UIColor *)secondaryText
 {
-    return [self colorWithHex:0xCAC4D0];
+    return [self colorWithHex:0xBDB7C7];
 }
 
 + (UIColor *)separator
 {
-    return [self colorWithHex:0x49454F];
+    return [self colorWithHex:0x2A2831];
 }
 
 + (UIColor *)outline
 {
-    return [self colorWithHex:0x938F99];
+    return [self colorWithHex:0x938FA0];
+}
+
++ (UIColor *)outlineVariant
+{
+    return [self colorWithHex:0x45424E];
+}
+
++ (UIColor *)scrim
+{
+    return [UIColor colorWithWhite:0.0 alpha:0.62];
+}
+
++ (UIColor *)inverseSurface
+{
+    return [self colorWithHex:0xE6E1E9];
+}
+
++ (UIColor *)onInverseSurface
+{
+    return [self colorWithHex:0x322F36];
 }
 
 + (UIColor *)primary
 {
-    return [self shiftColor:[self baseAccent] brightness:0.94 saturation:0.42];
+    return [self shiftColor:[self baseAccent] brightness:0.97 saturation:0.34];
 }
 
 + (UIColor *)onPrimary
 {
-    return [self shiftColor:[self baseAccent] brightness:0.34 saturation:0.85];
+    return [self shiftColor:[self baseAccent] brightness:0.22 saturation:0.75];
 }
 
 + (UIColor *)primaryContainer
 {
-    return [self shiftColor:[self baseAccent] brightness:0.52 saturation:0.62];
+    return [self shiftColor:[self baseAccent] brightness:0.46 saturation:0.52];
 }
 
 + (UIColor *)onPrimaryContainer
 {
-    return [self shiftColor:[self baseAccent] brightness:0.96 saturation:0.30];
+    return [self shiftColor:[self baseAccent] brightness:0.96 saturation:0.26];
 }
 
 + (UIColor *)secondary
 {
-    return [self shiftColor:[self baseAccent] brightness:0.88 saturation:0.24];
+    return [self shiftColor:[self baseAccent] brightness:0.88 saturation:0.20];
 }
 
 + (UIColor *)secondaryContainer
 {
-    return [self shiftColor:[self baseAccent] brightness:0.40 saturation:0.36];
+    return [self shiftColor:[self baseAccent] brightness:0.36 saturation:0.34];
 }
 
 + (UIColor *)onSecondaryContainer
 {
-    return [self shiftColor:[self baseAccent] brightness:0.95 saturation:0.24];
+    return [self shiftColor:[self baseAccent] brightness:0.95 saturation:0.22];
 }
 
 + (UIColor *)tertiary
@@ -180,7 +228,7 @@ static void OTDrawLine(CGContextRef ctx, CGFloat x1, CGFloat y1, CGFloat x2, CGF
     CGFloat h = 0, s = 0, b = 0, a = 0;
     [[self baseAccent] getHue:&h saturation:&s brightness:&b alpha:&a];
     h = fmod(h + 0.12, 1.0);
-    return [UIColor colorWithHue:h saturation:0.45 brightness:0.90 alpha:1.0];
+    return [UIColor colorWithHue:h saturation:0.42 brightness:0.92 alpha:1.0];
 }
 
 + (UIColor *)error
@@ -192,19 +240,21 @@ static void OTDrawLine(CGContextRef ctx, CGFloat x1, CGFloat y1, CGFloat x2, CGF
 
 + (UIFont *)font:(CGFloat)size weight:(CGFloat)weight
 {
-    return [UIFont systemFontOfSize:size weight:weight];
+    return OTPoppins(size, weight);
 }
 
-+ (UIFont *)displaySmall { return [self font:34.0 weight:UIFontWeightRegular]; }
-+ (UIFont *)headlineSmall { return [self font:24.0 weight:UIFontWeightRegular]; }
-+ (UIFont *)headlineMedium { return [self font:28.0 weight:UIFontWeightRegular]; }
-+ (UIFont *)titleLarge { return [self font:22.0 weight:UIFontWeightMedium]; }
++ (UIFont *)displayLarge { return [self font:52.0 weight:UIFontWeightBold]; }
++ (UIFont *)headlineLarge { return [self font:32.0 weight:UIFontWeightSemibold]; }
++ (UIFont *)displaySmall { return [self font:36.0 weight:UIFontWeightSemibold]; }
++ (UIFont *)headlineSmall { return [self font:24.0 weight:UIFontWeightSemibold]; }
++ (UIFont *)headlineMedium { return [self font:28.0 weight:UIFontWeightSemibold]; }
++ (UIFont *)titleLarge { return [self font:22.0 weight:UIFontWeightSemibold]; }
 + (UIFont *)titleMedium { return [self font:16.0 weight:UIFontWeightMedium]; }
 + (UIFont *)titleSmall { return [self font:14.0 weight:UIFontWeightMedium]; }
 + (UIFont *)bodyLarge { return [self font:16.0 weight:UIFontWeightRegular]; }
 + (UIFont *)bodyMedium { return [self font:14.0 weight:UIFontWeightRegular]; }
 + (UIFont *)bodySmall { return [self font:12.0 weight:UIFontWeightRegular]; }
-+ (UIFont *)labelLarge { return [self font:14.0 weight:UIFontWeightMedium]; }
++ (UIFont *)labelLarge { return [self font:14.0 weight:UIFontWeightSemibold]; }
 + (UIFont *)labelMedium { return [self font:12.0 weight:UIFontWeightMedium]; }
 + (UIFont *)labelSmall { return [self font:11.0 weight:UIFontWeightMedium]; }
 
@@ -712,6 +762,209 @@ static void OTDrawLine(CGContextRef ctx, CGFloat x1, CGFloat y1, CGFloat x2, CGF
             [d fill];
             break;
         }
+        case OTIconBell: {
+            CGContextMoveToPoint(ctx, 5.4, 16.8);
+            CGContextAddLineToPoint(ctx, 6.8, 15.2);
+            CGContextAddLineToPoint(ctx, 6.8, 10.6);
+            CGContextAddCurveToPoint(ctx, 6.8, 7.4, 9.0, 4.4, 12.0, 4.4);
+            CGContextAddCurveToPoint(ctx, 15.0, 4.4, 17.2, 7.4, 17.2, 10.6);
+            CGContextAddLineToPoint(ctx, 17.2, 15.2);
+            CGContextAddLineToPoint(ctx, 18.6, 16.8);
+            CGContextClosePath(ctx);
+            CGContextStrokePath(ctx);
+            CGContextMoveToPoint(ctx, 10.0, 19.2);
+            CGContextAddQuadCurveToPoint(ctx, 12.0, 20.8, 14.0, 19.2);
+            CGContextStrokePath(ctx);
+            break;
+        }
+        case OTIconHistory: {
+            CGContextStrokeEllipseInRect(ctx, CGRectMake(3.4, 3.4, 17.2, 17.2));
+            OTDrawLine(ctx, 12.0, 7.2, 12.0, 12.4);
+            OTDrawLine(ctx, 12.0, 12.4, 15.8, 14.4);
+            CGContextMoveToPoint(ctx, 3.4, 7.6);
+            CGContextAddLineToPoint(ctx, 3.4, 3.4);
+            CGContextAddLineToPoint(ctx, 7.6, 3.4);
+            CGContextStrokePath(ctx);
+            break;
+        }
+        case OTIconTrending: {
+            CGContextMoveToPoint(ctx, 3.2, 17.2);
+            CGContextAddLineToPoint(ctx, 9.0, 11.2);
+            CGContextAddLineToPoint(ctx, 13.0, 15.2);
+            CGContextAddLineToPoint(ctx, 20.8, 6.8);
+            CGContextStrokePath(ctx);
+            OTDrawLine(ctx, 16.4, 6.8, 20.8, 6.8);
+            OTDrawLine(ctx, 20.8, 6.8, 20.8, 11.2);
+            break;
+        }
+        case OTIconSync: {
+            CGContextMoveToPoint(ctx, 4.6, 9.4);
+            CGContextAddCurveToPoint(ctx, 6.2, 5.6, 10.6, 3.6, 14.8, 4.8);
+            CGContextAddCurveToPoint(ctx, 17.4, 5.5, 19.2, 7.2, 20.0, 9.4);
+            CGContextStrokePath(ctx);
+            OTDrawLine(ctx, 20.0, 5.0, 20.0, 9.6);
+            OTDrawLine(ctx, 20.0, 9.6, 15.6, 9.6);
+            CGContextMoveToPoint(ctx, 19.4, 14.6);
+            CGContextAddCurveToPoint(ctx, 17.8, 18.4, 13.4, 20.4, 9.2, 19.2);
+            CGContextAddCurveToPoint(ctx, 6.6, 18.5, 4.8, 16.8, 4.0, 14.6);
+            CGContextStrokePath(ctx);
+            OTDrawLine(ctx, 4.0, 19.0, 4.0, 14.4);
+            OTDrawLine(ctx, 4.0, 14.4, 8.4, 14.4);
+            break;
+        }
+        case OTIconPalette: {
+            CGContextStrokeEllipseInRect(ctx, CGRectMake(3.0, 3.0, 18.0, 18.0));
+            CGContextFillEllipseInRect(ctx, CGRectMake(7.4, 8.2, 2.4, 2.4));
+            CGContextFillEllipseInRect(ctx, CGRectMake(12.0, 6.6, 2.4, 2.4));
+            CGContextFillEllipseInRect(ctx, CGRectMake(16.2, 9.4, 2.4, 2.4));
+            CGContextStrokeEllipseInRect(ctx, CGRectMake(8.4, 14.0, 3.2, 3.2));
+            break;
+        }
+        case OTIconShield: {
+            CGContextMoveToPoint(ctx, 12.0, 3.0);
+            CGContextAddLineToPoint(ctx, 19.8, 6.0);
+            CGContextAddLineToPoint(ctx, 19.8, 11.8);
+            CGContextAddCurveToPoint(ctx, 19.8, 16.8, 16.4, 20.0, 12.0, 21.2);
+            CGContextAddCurveToPoint(ctx, 7.6, 20.0, 4.2, 16.8, 4.2, 11.8);
+            CGContextAddLineToPoint(ctx, 4.2, 6.0);
+            CGContextClosePath(ctx);
+            CGContextStrokePath(ctx);
+            OTDrawLine(ctx, 8.6, 11.8, 11.2, 14.4);
+            OTDrawLine(ctx, 11.2, 14.4, 15.6, 9.6);
+            break;
+        }
+        case OTIconStorage: {
+            UIBezierPath *a = [UIBezierPath bezierPathWithRoundedRect:CGRectMake(3.4, 4.2, 17.2, 4.4) cornerRadius:1.6];
+            [a stroke];
+            UIBezierPath *b = [UIBezierPath bezierPathWithRoundedRect:CGRectMake(3.4, 9.8, 17.2, 4.4) cornerRadius:1.6];
+            [b stroke];
+            UIBezierPath *c = [UIBezierPath bezierPathWithRoundedRect:CGRectMake(3.4, 15.4, 17.2, 4.4) cornerRadius:1.6];
+            [c stroke];
+            CGContextFillEllipseInRect(ctx, CGRectMake(6.0, 5.9, 1.6, 1.6));
+            CGContextFillEllipseInRect(ctx, CGRectMake(6.0, 11.5, 1.6, 1.6));
+            CGContextFillEllipseInRect(ctx, CGRectMake(6.0, 17.1, 1.6, 1.6));
+            break;
+        }
+        case OTIconDiscord: {
+            UIBezierPath *body = [UIBezierPath bezierPathWithRoundedRect:CGRectMake(2.8, 5.6, 18.4, 13.2) cornerRadius:6.0];
+            [body stroke];
+            CGContextFillEllipseInRect(ctx, CGRectMake(7.6, 10.4, 2.8, 3.4));
+            CGContextFillEllipseInRect(ctx, CGRectMake(13.6, 10.4, 2.8, 3.4));
+            OTDrawLine(ctx, 6.0, 19.0, 7.8, 17.4);
+            OTDrawLine(ctx, 18.0, 19.0, 16.2, 17.4);
+            break;
+        }
+        case OTIconPuzzle: {
+            UIBezierPath *piece = [UIBezierPath bezierPath];
+            [piece moveToPoint:CGPointMake(4.2, 9.0)];
+            [piece addLineToPoint:CGPointMake(8.2, 9.0)];
+            [piece addCurveToPoint:CGPointMake(8.2, 5.4) controlPoint1:CGPointMake(8.2, 8.0) controlPoint2:CGPointMake(6.0, 8.0)];
+            [piece addCurveToPoint:CGPointMake(11.8, 5.4) controlPoint1:CGPointMake(10.4, 2.8) controlPoint2:CGPointMake(9.6, 2.8)];
+            [piece addCurveToPoint:CGPointMake(11.8, 9.0) controlPoint1:CGPointMake(14.0, 8.0) controlPoint2:CGPointMake(11.8, 8.0)];
+            [piece addLineToPoint:CGPointMake(19.8, 9.0)];
+            [piece addLineToPoint:CGPointMake(19.8, 19.8)];
+            [piece addLineToPoint:CGPointMake(4.2, 19.8)];
+            [piece closePath];
+            [piece stroke];
+            break;
+        }
+        case OTIconFlame: {
+            UIBezierPath *flame = [UIBezierPath bezierPath];
+            [flame moveToPoint:CGPointMake(12.4, 2.8)];
+            [flame addCurveToPoint:CGPointMake(18.6, 12.4) controlPoint1:CGPointMake(14.0, 7.0) controlPoint2:CGPointMake(18.6, 8.4)];
+            [flame addCurveToPoint:CGPointMake(12.0, 21.2) controlPoint1:CGPointMake(18.6, 17.2) controlPoint2:CGPointMake(16.2, 21.2)];
+            [flame addCurveToPoint:CGPointMake(5.4, 14.4) controlPoint1:CGPointMake(7.8, 21.2) controlPoint2:CGPointMake(5.4, 18.2)];
+            [flame addCurveToPoint:CGPointMake(9.4, 8.4) controlPoint1:CGPointMake(5.4, 11.6) controlPoint2:CGPointMake(8.0, 10.2)];
+            [flame addCurveToPoint:CGPointMake(12.4, 2.8) controlPoint1:CGPointMake(9.4, 6.0) controlPoint2:CGPointMake(11.0, 5.0)];
+            [flame closePath];
+            [flame stroke];
+            break;
+        }
+        case OTIconDragHandle: {
+            UIBezierPath *a = [UIBezierPath bezierPathWithRoundedRect:CGRectMake(5.0, 9.0, 14.0, 2.0) cornerRadius:1.0];
+            [a fill];
+            UIBezierPath *b = [UIBezierPath bezierPathWithRoundedRect:CGRectMake(5.0, 13.4, 14.0, 2.0) cornerRadius:1.0];
+            [b fill];
+            break;
+        }
+        case OTIconLock: {
+            UIBezierPath *body = [UIBezierPath bezierPathWithRoundedRect:CGRectMake(5.0, 10.4, 14.0, 9.8) cornerRadius:2.6];
+            [body stroke];
+            CGContextMoveToPoint(ctx, 8.2, 10.4);
+            CGContextAddLineToPoint(ctx, 8.2, 7.8);
+            CGContextAddCurveToPoint(ctx, 8.2, 3.8, 15.8, 3.8, 15.8, 7.8);
+            CGContextAddLineToPoint(ctx, 15.8, 10.4);
+            CGContextStrokePath(ctx);
+            CGContextFillEllipseInRect(ctx, CGRectMake(11.0, 14.2, 2.0, 2.0));
+            break;
+        }
+        case OTIconEqualizer: {
+            OTDrawLine(ctx, 6.0, 3.4, 6.0, 20.6);
+            OTDrawLine(ctx, 12.0, 3.4, 12.0, 20.6);
+            OTDrawLine(ctx, 18.0, 3.4, 18.0, 20.6);
+            CGContextFillEllipseInRect(ctx, CGRectMake(4.0, 7.4, 4.0, 4.0));
+            CGContextFillEllipseInRect(ctx, CGRectMake(10.0, 13.4, 4.0, 4.0));
+            CGContextFillEllipseInRect(ctx, CGRectMake(16.0, 8.6, 4.0, 4.0));
+            break;
+        }
+        case OTIconOutput: {
+            CGContextMoveToPoint(ctx, 3.6, 9.4);
+            CGContextAddLineToPoint(ctx, 7.4, 9.4);
+            CGContextAddLineToPoint(ctx, 12.0, 5.2);
+            CGContextAddLineToPoint(ctx, 12.0, 18.8);
+            CGContextAddLineToPoint(ctx, 7.4, 14.6);
+            CGContextAddLineToPoint(ctx, 3.6, 14.6);
+            CGContextClosePath(ctx);
+            CGContextFillPath(ctx);
+            CGContextMoveToPoint(ctx, 15.0, 9.0);
+            CGContextAddQuadCurveToPoint(ctx, 18.0, 12.0, 15.0, 15.0);
+            CGContextStrokePath(ctx);
+            CGContextMoveToPoint(ctx, 17.6, 6.4);
+            CGContextAddQuadCurveToPoint(ctx, 22.2, 12.0, 17.6, 17.6);
+            CGContextStrokePath(ctx);
+            break;
+        }
+        case OTIconMusicNote: {
+            UIBezierPath *note = [UIBezierPath bezierPath];
+            [note moveToPoint:CGPointMake(15.4, 3.0)];
+            [note addLineToPoint:CGPointMake(15.4, 15.4)];
+            [note addCurveToPoint:CGPointMake(9.2, 18.0) controlPoint1:CGPointMake(15.4, 17.4) controlPoint2:CGPointMake(12.8, 18.0)];
+            [note addCurveToPoint:CGPointMake(9.2, 12.6) controlPoint1:CGPointMake(5.6, 18.0) controlPoint2:CGPointMake(5.6, 12.6)];
+            [note addCurveToPoint:CGPointMake(12.6, 13.0) controlPoint1:CGPointMake(10.4, 12.4) controlPoint2:CGPointMake(11.6, 12.6)];
+            [note addLineToPoint:CGPointMake(12.6, 6.4)];
+            [note addCurveToPoint:CGPointMake(19.4, 9.2) controlPoint1:CGPointMake(16.4, 6.8) controlPoint2:CGPointMake(19.4, 7.6)];
+            [note addCurveToPoint:CGPointMake(17.0, 11.8) controlPoint1:CGPointMake(19.4, 10.8) controlPoint2:CGPointMake(18.4, 11.8)];
+            [note addLineToPoint:CGPointMake(15.4, 11.2)];
+            [note closePath];
+            [note fill];
+            break;
+        }
+        case OTIconChevronUp: {
+            OTDrawLine(ctx, 4.6, 15.0, 12.0, 7.6);
+            OTDrawLine(ctx, 12.0, 7.6, 19.4, 15.0);
+            break;
+        }
+        case OTIconNotificationsOff: {
+            CGContextMoveToPoint(ctx, 5.4, 16.8);
+            CGContextAddLineToPoint(ctx, 6.8, 15.2);
+            CGContextAddLineToPoint(ctx, 6.8, 10.6);
+            CGContextAddCurveToPoint(ctx, 6.8, 7.4, 9.0, 4.4, 12.0, 4.4);
+            CGContextAddCurveToPoint(ctx, 15.0, 4.4, 17.2, 7.4, 17.2, 10.6);
+            CGContextAddLineToPoint(ctx, 17.2, 15.2);
+            CGContextAddLineToPoint(ctx, 18.6, 16.8);
+            CGContextClosePath(ctx);
+            CGContextStrokePath(ctx);
+            OTDrawLine(ctx, 4.0, 4.0, 20.0, 20.0);
+            break;
+        }
+        case OTIconAccountCircle: {
+            CGContextStrokeEllipseInRect(ctx, CGRectMake(2.8, 2.8, 18.4, 18.4));
+            CGContextStrokeEllipseInRect(ctx, CGRectMake(9.0, 6.6, 6.0, 6.0));
+            CGContextMoveToPoint(ctx, 5.6, 19.4);
+            CGContextAddQuadCurveToPoint(ctx, 12.0, 12.8, 18.4, 19.4);
+            CGContextStrokePath(ctx);
+            break;
+        }
         default: {
             CGContextStrokeEllipseInRect(ctx, CGRectMake(4.0, 4.0, 16.0, 16.0));
             break;
@@ -857,6 +1110,20 @@ static void OTDrawLine(CGContextRef ctx, CGFloat x1, CGFloat y1, CGFloat x2, CGF
     view.layer.masksToBounds = YES;
 }
 
++ (void)styleCard:(UIView *)view
+{
+    [self styleCard:view radius:20.0];
+}
+
++ (void)styleCard:(UIView *)view radius:(CGFloat)radius
+{
+    view.backgroundColor = [self surfaceContainer];
+    view.layer.cornerRadius = radius;
+    view.layer.borderWidth = 1.0;
+    view.layer.borderColor = [self cardBorder].CGColor;
+    view.layer.masksToBounds = YES;
+}
+
 + (void)applyShadow:(UIView *)view
 {
     view.layer.shadowColor = [UIColor blackColor].CGColor;
@@ -876,16 +1143,14 @@ static void OTDrawLine(CGContextRef ctx, CGFloat x1, CGFloat y1, CGFloat x2, CGF
         return;
     }
     UIView *toast = [[UIView alloc] initWithFrame:CGRectZero];
-    toast.backgroundColor = [self surfaceHighest];
-    toast.layer.cornerRadius = 14.0;
-    toast.layer.borderWidth = 0.5;
-    toast.layer.borderColor = [self separator].CGColor;
+    toast.backgroundColor = [self inverseSurface];
+    toast.layer.cornerRadius = 12.0;
     toast.alpha = 0.0;
     toast.autoresizingMask = UIViewAutoresizingFlexibleTopMargin;
 
     UILabel *label = [[UILabel alloc] initWithFrame:CGRectZero];
     label.text = text;
-    label.textColor = [self text];
+    label.textColor = [self onInverseSurface];
     label.font = [self bodyMedium];
     label.numberOfLines = 0;
     label.textAlignment = NSTextAlignmentCenter;

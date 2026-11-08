@@ -8,6 +8,7 @@
 #import "OTInnertube.h"
 #import "OTStore.h"
 #import "OTRootViewController.h"
+#import "OTComponents.h"
 
 @interface OTSearchViewController () <UITextFieldDelegate, UITableViewDataSource, UITableViewDelegate>
 
@@ -46,12 +47,14 @@
     [self.view addSubview:self.searchContainer];
 
     UIView *fieldBackground = [[UIView alloc] initWithFrame:CGRectZero];
-    fieldBackground.backgroundColor = [OTTheme surfaceHigh];
+    fieldBackground.backgroundColor = [OTTheme surfaceContainer];
     fieldBackground.layer.cornerRadius = 24.0;
+    fieldBackground.layer.borderWidth = 1.0;
+    fieldBackground.layer.borderColor = [OTTheme cardBorder].CGColor;
     fieldBackground.tag = 100;
     [self.searchContainer addSubview:fieldBackground];
 
-    UIImageView *searchIcon = [[UIImageView alloc] initWithFrame:CGRectMake(16, 12, 20, 20)];
+    UIImageView *searchIcon = [[UIImageView alloc] initWithFrame:CGRectMake(18, 12, 20, 20)];
     searchIcon.image = [OTTheme icon:OTIconSearch size:20];
     searchIcon.tintColor = [OTTheme secondaryText];
     [fieldBackground addSubview:searchIcon];
@@ -75,6 +78,8 @@
 
     self.chipsView = [[OTChipsView alloc] initWithFrame:CGRectZero];
     [self.chipsView setTitles:@[@"Todo", @"Canciones", @"Vídeos", @"Álbumes", @"Artistas", @"Listas"]
+                        icons:@[@(-1), @(OTIconMusicNote), @(OTIconVideo), @(OTIconAlbum),
+                                @(OTIconArtist), @(OTIconPlaylist)]
                 selectedIndex:0];
     __weak typeof(self) weakSelf = self;
     self.chipsView.onSelect = ^(NSInteger index) {
@@ -85,10 +90,10 @@
     self.suggestionsTable = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
     self.suggestionsTable.dataSource = self;
     self.suggestionsTable.delegate = self;
-    self.suggestionsTable.backgroundColor = [OTTheme surfaceContainer];
-    self.suggestionsTable.separatorColor = [OTTheme colorWithHex:0x2C2A31];
+    self.suggestionsTable.backgroundColor = [OTTheme surface];
+    self.suggestionsTable.separatorColor = [OTTheme separator];
     self.suggestionsTable.separatorInset = UIEdgeInsetsMake(0, 52, 0, 16);
-    self.suggestionsTable.rowHeight = 52.0;
+    self.suggestionsTable.rowHeight = 56.0;
     self.suggestionsTable.hidden = YES;
     self.suggestionsTable.tableFooterView = [[UIView alloc] initWithFrame:CGRectZero];
     [self.view addSubview:self.suggestionsTable];
@@ -107,7 +112,7 @@
 
     UIView *fieldBackground = [self.searchContainer viewWithTag:100];
     fieldBackground.frame = CGRectMake(16.0, 6.0, width - 32.0, 44.0);
-    self.searchField.frame = CGRectMake(46.0, 0, width - 32.0 - 46.0 - 40.0, 44.0);
+    self.searchField.frame = CGRectMake(50.0, 0, width - 32.0 - 50.0 - 42.0, 44.0);
 
     self.chipsView.frame = CGRectMake(0, top + 56.0, width, 44.0);
     CGFloat tableY = top + 100.0;
@@ -322,7 +327,7 @@
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath
 {
     if (tableView == self.suggestionsTable) {
-        return 52.0;
+        return 56.0;
     }
     return [super tableView:tableView heightForRowAtIndexPath:indexPath];
 }
@@ -341,7 +346,7 @@
         return [super tableView:tableView viewForHeaderInSection:section];
     }
     UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, tableView.bounds.size.width, 44.0)];
-    header.backgroundColor = [OTTheme surfaceContainer];
+    header.backgroundColor = [OTTheme surface];
 
     UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(16.0, 0, tableView.bounds.size.width - 120.0, 44.0)];
     label.font = [OTTheme labelLarge];
@@ -370,7 +375,7 @@
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:identifier];
     if (!cell) {
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:identifier];
-        cell.backgroundColor = [OTTheme surfaceContainer];
+        cell.backgroundColor = [OTTheme surface];
         cell.textLabel.textColor = [OTTheme text];
         cell.textLabel.font = [OTTheme bodyLarge];
         cell.imageView.image = [OTTheme icon:OTIconSearch size:18];
